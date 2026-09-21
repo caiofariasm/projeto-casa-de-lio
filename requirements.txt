@@ -5,6 +5,3 @@ python-multipart
 itsdangerous
 
 
-
-// (rodar um pip install -r requirements.txt para instalar as dependências)
-// (depois de instalado roda um uvicorn app:app --reload para iniciar o servidor)
