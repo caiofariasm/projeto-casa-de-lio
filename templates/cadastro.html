@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+{% block conteudo %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card shadow-sm mt-4">
+            <div class="card-header bg-primary text-white text-center">
+                <h3 class="mb-0">Cadastrar Novo Aluno</h3>
+            </div>
+            <div class="card-body">
+                <form action="/cadastrar" method="POST">
+                    <div class="mb-3">
+                        <label for="nome" class="form-label text-muted">Nome Completo</label>
+                        <input type="text" class="form-control form-control-lg" id="nome" name="nome" required>
+                    </div>
+                    <div class="mb-4">
+                        <label for="turma" class="form-label text-muted">Turma</label>
+                        <select class="form-select form-select-lg" id="turma" name="turma" required>
+                            <option value="Manhã">Manhã</option>
+                            <option value="Tarde">Tarde</option>
+                            <option value="Noite">Noite</option>
+                        </select>
+                    </div>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary btn-lg">Guardar Aluno</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

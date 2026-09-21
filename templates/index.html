@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+{% block conteudo %}
+    <h1 class="text-center mb-4">Lista de Presença</h1>
+
+    {% if alunos %}
+        {% for aluno in alunos %}
+        <div class="card shadow-sm mb-3">
+            <div class="card-body">
+                <h3 class="card-title">{{ aluno['nome'] }}</h3>
+                <p class="card-text text-muted">Turma: {{ aluno['turma'] }}</p>
+                <div class="d-grid gap-2 d-md-block">
+                    <a href="/registrar/{{ aluno['id'] }}/Presente" class="btn btn-success btn-lg me-2">Presente</a>
+                    <a href="/registrar/{{ aluno['id'] }}/Falta" class="btn btn-danger btn-lg">Falta</a>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+        <div class="alert alert-info text-center mt-4">
+            <h4 class="alert-heading">Chamada Concluída!</h4>
+            <p>Todos os alunos já foram registados no dia de hoje.</p>
+        </div>
+    {% endif %}
+
+    <hr class="mt-5">
+    <div class="text-center mb-5">
+        <a href="/exportar" class="btn btn-secondary">Baixar Relatório (Excel/CSV)</a>
+    </div>
+{% endblock %}
