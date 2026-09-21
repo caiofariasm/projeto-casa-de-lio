@@ -89,20 +89,44 @@
                 <span class="navbar-toggler-icon" style="filter: invert(1);"></span>
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-auto">
+                <ul class="navbar-nav ms-auto align-items-center">
                     <li class="nav-item"><a class="nav-link fw-semibold" href="/">Chamada</a></li>
+                    
                     {% if request.session.get('perfil') == 'coordenacao' %}
                         <li class="nav-item"><a class="nav-link fw-semibold" href="/dashboard">Dashboard</a></li>
                         <li class="nav-item"><a class="nav-link fw-semibold" href="/cadastrar">Cadastrar Aluno</a></li>
                     {% endif %}
-                    <li class="nav-item"><a class="nav-link fw-bold" style="color: var(--laranja-adra) !important;" href="/sair">Sair</a></li>
+                    
+                    <!-- Menu Suspenso (Dropdown) Integrado ao Novo Design -->
+                    <li class="nav-item dropdown ms-lg-3 mt-2 mt-lg-0">
+                        <a class="nav-link fw-bold dropdown-toggle" href="#" id="menuPerfil" role="button" data-bs-toggle="dropdown" aria-expanded="false" style="color: var(--laranja-adra) !important;">
+                            Opções
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end shadow border-0 mt-2" aria-labelledby="menuPerfil">
+                            {% if request.session.get('perfil') == 'coordenacao' %}
+                                <li>
+                                    <a class="dropdown-item text-primary fw-bold" href="/usuarios/novo">
+                                        ⚙️ Criar Novo Acesso
+                                    </a>
+                                </li>
+                                <li><hr class="dropdown-divider"></li>
+                            {% endif %}
+                            <li>
+                                <a class="dropdown-item text-danger fw-bold" href="/sair">
+                                    🚪 Sair do Sistema
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
                 </ul>
             </div>
         </div>
     </nav>
+    
     <div class="container mt-4">
         {% block conteudo %}{% endblock %}
     </div>
+    
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

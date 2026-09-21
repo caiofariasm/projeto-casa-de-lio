@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+{% block conteudo %}
+<div class="row justify-content-center mt-4">
+    <div class="col-md-6">
+        <div class="card shadow-lg border-0" style="border-radius: 1.5rem;">
+            <div class="card-header bg-primary text-white pt-4 pb-3" style="border-top-left-radius: 1.5rem; border-top-right-radius: 1.5rem;">
+                <h4 class="text-center fw-bold mb-0">Criar Novo Acesso</h4>
+                <p class="text-center text-white-50 mb-0">Área exclusiva da Coordenação</p>
+            </div>
+            
+            <div class="card-body p-4 p-md-5">
+                <form action="/usuarios/novo" method="POST">
+                    
+                    <div class="mb-4">
+                        <label class="form-label fw-semibold text-muted">Nome de Utilizador (Login)</label>
+                        <input type="text" name="login" class="form-control bg-light border-0" placeholder="Ex: prof.maria" required>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label class="form-label fw-semibold text-muted">Palavra-passe</label>
+                        <input type="password" name="senha" class="form-control bg-light border-0" required>
+                    </div>
+                    
+                    <div class="mb-5">
+                        <label class="form-label fw-semibold text-muted">Nível de Permissão</label>
+                        <select name="perfil" class="form-select bg-light border-0" required>
+                            <option value="professor" selected>Professor(a) - Apenas faz a chamada</option>
+                            <option value="coordenacao">Coordenação - Acesso total ao sistema</option>
+                        </select>
+                    </div>
+                    
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-success btn-lg rounded-pill fw-bold text-white shadow-sm">
+                            Criar Conta
+                        </button>
+                        <a href="/dashboard" class="btn btn-light rounded-pill fw-bold text-muted mt-2">
+                            Cancelar e Voltar
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

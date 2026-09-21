@@ -254,3 +254,37 @@ async def salvar_cadastro(request: Request):
     conexao.close()
     
     return RedirectResponse(url="/dashboard", status_code=303)
+
+@app.get("/usuarios/novo", response_class=HTMLResponse)
+async def tela_novo_usuario(request: Request):
+    # Proteção estrita: Apenas a coordenação pode aceder
+    if request.session.get('perfil') != 'coordenacao':
+        return RedirectResponse(url="/", status_code=303)
+    return templates.TemplateResponse(request=request, name="novo_usuario.html")
+
+@app.post("/usuarios/novo")
+async def salvar_usuario(request: Request):
+    # Proteção estrita na gravação dos dados
+    if request.session.get('perfil') != 'coordenacao':
+        return RedirectResponse(url="/", status_code=303)
+        
+    formulario = await request.form()
+    login = formulario.get('login')
+    senha = formulario.get('senha')
+    perfil = formulario.get('perfil')
+    
+    conexao = pegar_conexao()
+    try:
+        conexao.execute('''
+            INSERT INTO usuarios (login, senha, perfil) 
+            VALUES (?, ?, ?)
+        ''', (login, senha, perfil))
+        conexao.commit()
+    except:
+        # Se o utilizador já existir (o login é UNIQUE), o sistema ignora o erro para não quebrar
+        pass 
+    finally:
+        conexao.close()
+        
+    # Após criar a conta, devolve a coordenação ao Painel Analítico
+    return RedirectResponse(url="/dashboard", status_code=303)
