@@ -11,20 +11,32 @@
     <form method="GET" action="/" class="d-flex mb-4">
         <div class="input-group shadow-sm" style="max-width: 300px;">
             <span class="input-group-text bg-primary text-white border-primary fw-bold">Data:</span>
-            <!-- Mudámos de type="date" para type="text" com um ID específico -->
             <input type="text" id="calendario-br" name="data_chamada" class="form-control border-primary bg-white" value="{{ data_atual }}" placeholder="Selecione a data">
         </div>
     </form>
 
+    <!-- LISTA DE ALUNOS (Layout Perfeitamente Alinhado) -->
     {% for aluno in alunos %}
-    <div class="card shadow-sm mb-3">
-        <div class="card-body d-flex flex-column flex-md-row justify-content-between align-items-center">
-            <div class="mb-3 mb-md-0 text-center text-md-start">
+    <div class="card shadow-sm mb-3 border-0" style="border-radius: 1rem;">
+        <div class="card-body p-4 d-flex flex-column flex-lg-row justify-content-between align-items-center gap-3">
+            
+            <!-- LADO ESQUERDO: Dados do Aluno -->
+            <div class="text-center text-lg-start w-100">
                 <h4 class="card-title mb-2 fw-bold text-primary">{{ aluno['nome'] }}</h4>
-                <span class="badge-institucional">Turma: {{ aluno['turma'] }}</span>
+                
+                <!-- ÚNICA etiqueta de turma -->
+                <span class="badge-institucional me-2">Turma: {{ aluno['turma'] }}</span>
+                
+                <!-- Alerta de 3 Faltas -->
+                {% if aluno['total_faltas'] >= 3 %}
+                    <span class="badge bg-danger shadow-sm" style="border-radius: 0.4rem; padding: 0.35rem 0.6rem; font-size: 0.75rem; text-transform: uppercase;">
+                        ⚠️ Vaga Disponibilizada ({{ aluno['total_faltas'] }} Faltas)
+                    </span>
+                {% endif %}
             </div>
             
-            <div class="d-grid gap-2 d-md-block">
+            <!-- LADO DIREITO: Botões de Chamada -->
+            <div class="d-flex flex-wrap justify-content-center justify-content-lg-end gap-2 w-100">
                 <a href="/registrar/{{ aluno['id'] }}/{{ data_atual }}/Presente" 
                    class="btn {% if aluno['status'] == 'Presente' %}btn-success{% else %}btn-outline-success{% endif %} rounded-pill px-4 fw-semibold">
                    Presente
@@ -38,24 +50,63 @@
                    Justificada
                 </a>
             </div>
+            
         </div>
     </div>
     {% endfor %}
 
     <hr class="mt-5">
+    
+    <!-- BOTÃO DE EXPORTAÇÃO -->
     <div class="text-center mb-5">
-        <a href="/exportar" class="btn btn-warning rounded-pill px-5 py-2 fw-bold shadow-sm text-white">Baixar Relatório (Excel/CSV)</a>
+        <button type="button" class="btn btn-warning rounded-pill px-5 py-2 fw-bold shadow-sm text-white" data-bs-toggle="modal" data-bs-target="#modalFiltros">
+            Baixar Relatório de Frequência
+        </button>
     </div>
 
-    <!-- Script que ativa o calendário em português e formata a data visualmente -->
+    <!-- JANELA FLUTUANTE (Modal) DE FILTROS -->
+    <div class="modal fade" id="modalFiltros" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content shadow-lg border-0" style="border-radius: 1.5rem;">
+                <div class="modal-header bg-primary text-white" style="border-top-left-radius: 1.5rem; border-top-right-radius: 1.5rem;">
+                    <h5 class="modal-title fw-bold">Filtros de Exportação</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <form action="/exportar" method="GET">
+                        <div class="mb-4">
+                            <label class="form-label text-primary fw-bold">Filtrar por Mês</label>
+                            <input type="month" name="mes" class="form-control rounded-pill border-primary">
+                            <small class="text-muted px-2">Deixe em branco para baixar todo o histórico.</small>
+                        </div>
+                        <div class="mb-4">
+                            <label class="form-label text-primary fw-bold">Filtrar por Turma</label>
+                            <select name="turma" class="form-select rounded-pill border-primary">
+                                <option value="">Todas as Turmas</option>
+                                <option value="Manhã">Manhã</option>
+                                <option value="Tarde">Tarde</option>
+                                <option value="Noite">Noite</option>
+                            </select>
+                        </div>
+                        <div class="d-grid mt-2">
+                            <button type="submit" class="btn btn-warning rounded-pill fw-bold text-white shadow-sm py-2">
+                                Gerar Arquivo Excel
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Script que ativa o calendário em português -->
     <script>
         flatpickr("#calendario-br", {
-            locale: "pt",              // Traduz para português
-            dateFormat: "Y-m-d",       // O formato que vai para o Python (Ano-Mês-Dia)
-            altInput: true,            // Cria um campo visual alternativo
-            altFormat: "d/m/Y",        // O formato que a professora vê (Dia/Mês/Ano)
+            locale: "pt",
+            dateFormat: "Y-m-d",
+            altInput: true,
+            altFormat: "d/m/Y",
             onChange: function(selectedDates, dateStr, instance) {
-                // Quando a pessoa clica numa data, o sistema recarrega automaticamente
                 instance.element.closest('form').submit();
             }
         });

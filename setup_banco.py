@@ -3,27 +3,40 @@ import sqlite3
 conexao = sqlite3.connect('banco.db')
 cursor = conexao.cursor()
 
-# Tabela de Alunos
+# 1. Tabela de Alunos (Estrutura CRM Completa)
 cursor.execute('''
     CREATE TABLE IF NOT EXISTS alunos (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         nome TEXT NOT NULL,
-        turma TEXT NOT NULL
+        data_nascimento TEXT NOT NULL,
+        turma TEXT NOT NULL,
+        telefone TEXT NOT NULL,
+        cep TEXT,
+        rua TEXT,
+        numero TEXT,
+        bairro TEXT,
+        cidade TEXT,
+        referencia TEXT,
+        contato_emergencia TEXT,
+        telefone_emergencia TEXT,
+        condicao_medica TEXT,
+        nome_responsavel TEXT,
+        autorizacao_pais BOOLEAN
     )
 ''')
 
-# Tabela de Presenças Diárias
+# 2. Tabela de Presenças
 cursor.execute('''
     CREATE TABLE IF NOT EXISTS presencas (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         aluno_id INTEGER,
-        data DATE DEFAULT CURRENT_DATE,
+        data TEXT NOT NULL,
         status TEXT NOT NULL,
-        FOREIGN KEY(aluno_id) REFERENCES alunos(id)
+        FOREIGN KEY (aluno_id) REFERENCES alunos (id)
     )
 ''')
 
-# Tabela de Utilizadores (Controlo de Acesso)
+# 3. Tabela de Utilizadores (A que estava a faltar!)
 cursor.execute('''
     CREATE TABLE IF NOT EXISTS usuarios (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -33,12 +46,11 @@ cursor.execute('''
     )
 ''')
 
-# Dados Iniciais (Alunos e Utilizadores de teste)
-cursor.execute("INSERT OR IGNORE INTO usuarios (login, senha, perfil) VALUES ('prof', '123', 'professor')")
+# Cria as contas padrão automaticamente para não ficares trancado fora do sistema
 cursor.execute("INSERT OR IGNORE INTO usuarios (login, senha, perfil) VALUES ('coord', 'admin', 'coordenacao')")
-cursor.execute("INSERT INTO alunos (nome, turma) VALUES ('João Silva', 'Manhã')")
-cursor.execute("INSERT INTO alunos (nome, turma) VALUES ('Maria Oliveira', 'Manhã')")
+cursor.execute("INSERT OR IGNORE INTO usuarios (login, senha, perfil) VALUES ('prof', '123', 'professor')")
 
 conexao.commit()
 conexao.close()
-print("Base de dados completa criada com sucesso!")
+
+print("Banco de dados recriado com sucesso! (Alunos, Presenças e Usuários)")

@@ -39,16 +39,17 @@ async def dashboard(request: Request):
         
     conexao = pegar_conexao()
     
-    # 1. Total de alunos cadastrados
     total_alunos = conexao.execute('SELECT COUNT(*) as qtd FROM alunos').fetchone()['qtd']
     
-    # 2. TOTAIS PARA OS CARTÕES SUPERIORES (A variável que estava em falta!)
     totais = conexao.execute('SELECT status, COUNT(*) as quantidade FROM presencas GROUP BY status').fetchall()
     dados_grafico = {"Presente": 0, "Falta": 0, "Falta justificada": 0}
     for linha in totais:
         dados_grafico[linha['status']] = linha['quantidade']
+        
+    # Cálculo da Taxa de Assiduidade (%)
+    total_registos = sum(dados_grafico.values())
+    taxa_assiduidade = round((dados_grafico['Presente'] / total_registos * 100), 1) if total_registos > 0 else 0
     
-    # 3. HISTÓRICO PARA O GRÁFICO DE EVOLUÇÃO
     historico = conexao.execute('''
         SELECT data,
                SUM(CASE WHEN status = 'Presente' THEN 1 ELSE 0 END) as presentes,
@@ -58,6 +59,34 @@ async def dashboard(request: Request):
         GROUP BY data
         ORDER BY data ASC
     ''').fetchall()
+    
+    # NOVO: Desempenho por Turma
+    turmas_db = conexao.execute('''
+        SELECT alunos.turma,
+               SUM(CASE WHEN presencas.status = 'Presente' THEN 1 ELSE 0 END) as presentes,
+               SUM(CASE WHEN presencas.status = 'Falta' THEN 1 ELSE 0 END) as faltas
+        FROM presencas
+        JOIN alunos ON presencas.aluno_id = alunos.id
+        GROUP BY alunos.turma
+    ''').fetchall()
+    
+    dados_turmas = {
+        "nomes": [t['turma'] for t in turmas_db],
+        "presentes": [t['presentes'] for t in turmas_db],
+        "faltas": [t['faltas'] for t in turmas_db]
+    }
+    
+    # NOVO: Alerta de Faltas (Top 5 alunos em risco)
+    alunos_risco = conexao.execute('''
+        SELECT alunos.nome, alunos.turma, COUNT(presencas.id) as total_faltas
+        FROM presencas
+        JOIN alunos ON presencas.aluno_id = alunos.id
+        WHERE presencas.status = 'Falta'
+        GROUP BY alunos.id
+        ORDER BY total_faltas DESC
+        LIMIT 5
+    ''').fetchall()
+    
     conexao.close()
     
     datas = [datetime.strptime(linha['data'], '%Y-%m-%d').strftime('%d/%m/%Y') for linha in historico]
@@ -70,11 +99,14 @@ async def dashboard(request: Request):
         name="dashboard.html", 
         context={
             "total_alunos": total_alunos, 
-            "dados_grafico": dados_grafico, # <-- A variável voltou!
+            "dados_grafico": dados_grafico,
+            "taxa_assiduidade": taxa_assiduidade,
             "datas": datas, 
             "presentes": presentes, 
             "faltas": faltas,
-            "justificadas": justificadas
+            "justificadas": justificadas,
+            "dados_turmas": dados_turmas,
+            "alunos_risco": alunos_risco
         }
     )
       
@@ -93,9 +125,10 @@ async def home(request: Request, data_chamada: str = None):
     data_atual = data_chamada if data_chamada else date.today().isoformat()
         
     conexao = pegar_conexao()
-    # LEFT JOIN: Traz sempre todos os alunos. Se houver registo nessa data, traz o status; se não, traz nulo.
+    # ATUALIZAÇÃO: Conta o histórico total de faltas do aluno para a regra da perda de vaga
     alunos = conexao.execute('''
-        SELECT a.id, a.nome, a.turma, p.status
+        SELECT a.id, a.nome, a.turma, p.status,
+               (SELECT COUNT(*) FROM presencas WHERE aluno_id = a.id AND status = 'Falta') as total_faltas
         FROM alunos a
         LEFT JOIN presencas p ON a.id = p.aluno_id AND p.data = ?
     ''', (data_atual,)).fetchall()
@@ -130,24 +163,38 @@ async def registrar(request: Request, aluno_id: int, data_chamada: str, status: 
     return RedirectResponse(url=f"/?data_chamada={data_chamada}", status_code=303)
 
 @app.get("/exportar")
-async def exportar(request: Request):
+async def exportar(request: Request, mes: str = None, turma: str = None):
     if not request.session.get('perfil'):
         return RedirectResponse(url="/login", status_code=303)
         
     conexao = pegar_conexao()
-    # Melhoria de Ordenação: Traz os dados organizados da data mais recente para a mais antiga
-    relatorio = conexao.execute('''
+    
+    # Consulta base
+    query = '''
         SELECT alunos.nome, alunos.turma, presencas.data, presencas.status 
         FROM presencas
         JOIN alunos ON presencas.aluno_id = alunos.id
-        ORDER BY presencas.data DESC, alunos.nome ASC
-    ''').fetchall()
+        WHERE 1=1
+    '''
+    parametros = []
+    
+    # Se a pessoa escolheu um mês (O formato chega como YYYY-MM)
+    if mes:
+        query += " AND presencas.data LIKE ?"
+        parametros.append(f"{mes}%")
+        
+    # Se a pessoa escolheu uma turma específica
+    if turma:
+        query += " AND alunos.turma = ?"
+        parametros.append(turma)
+        
+    query += " ORDER BY presencas.data DESC, alunos.nome ASC"
+    
+    relatorio = conexao.execute(query, parametros).fetchall()
     conexao.close()
     
-    # Melhoria do Separador: Uso do ponto e vírgula (;) para o Excel em português ler as colunas perfeitamente
     texto_csv = "Nome;Turma;Data;Status\n"
     for linha in relatorio:
-        # Aproveitamos a lógica que criaste antes para garantir o formato Dia/Mês/Ano
         data_br = datetime.strptime(linha['data'], '%Y-%m-%d').strftime('%d/%m/%Y')
         texto_csv += f"{linha['nome']};{linha['turma']};{data_br};{linha['status']}\n"
         
@@ -159,17 +206,51 @@ async def exportar(request: Request):
     
 @app.get("/cadastrar", response_class=HTMLResponse)
 async def tela_cadastrar(request: Request):
-    if not request.session.get('perfil'):
-        return RedirectResponse(url="/login", status_code=303)
+    if request.session.get('perfil') != 'coordenacao':
+        return RedirectResponse(url="/", status_code=303)
     return templates.TemplateResponse(request=request, name="cadastro.html")
 
+# NOVO: A rota invisível que recebe os dados do formulário e salva no banco
 @app.post("/cadastrar")
-async def salvar_aluno(request: Request, nome: str = Form(...), turma: str = Form(...)):
-    if not request.session.get('perfil'):
-        return RedirectResponse(url="/login", status_code=303)
+async def salvar_cadastro(request: Request):
+    if request.session.get('perfil') != 'coordenacao':
+        return RedirectResponse(url="/", status_code=303)
         
+    formulario = await request.form()
+    
+    nome = formulario.get('nome')
+    data_nascimento = formulario.get('data_nascimento')
+    turma = formulario.get('turma')
+    telefone = formulario.get('telefone')
+    
+    # Endereço desmembrado
+    cep = formulario.get('cep', '')
+    rua = formulario.get('rua', '')
+    numero = formulario.get('numero', '')
+    bairro = formulario.get('bairro', '')
+    cidade = formulario.get('cidade', '')
+    referencia = formulario.get('referencia', '')
+    
+    # Saúde e Emergência
+    contato_emergencia = formulario.get('contato_emergencia', '')
+    telefone_emergencia = formulario.get('telefone_emergencia', '')
+    condicao_medica = formulario.get('condicao_medica', '')
+    
+    # Menores de Idade
+    nome_responsavel = formulario.get('nome_responsavel', '')
+    autorizacao = 1 if formulario.get('autorizacao') == 'on' else 0
+    
     conexao = pegar_conexao()
-    conexao.execute('INSERT INTO alunos (nome, turma) VALUES (?, ?)', (nome, turma))
+    conexao.execute('''
+        INSERT INTO alunos (
+            nome, data_nascimento, turma, telefone, 
+            cep, rua, numero, bairro, cidade, referencia,
+            contato_emergencia, telefone_emergencia, condicao_medica,
+            nome_responsavel, autorizacao_pais
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (nome, data_nascimento, turma, telefone, cep, rua, numero, bairro, cidade, referencia, 
+          contato_emergencia, telefone_emergencia, condicao_medica, nome_responsavel, autorizacao))
     conexao.commit()
     conexao.close()
-    return RedirectResponse(url="/", status_code=303)
+    
+    return RedirectResponse(url="/dashboard", status_code=303)
