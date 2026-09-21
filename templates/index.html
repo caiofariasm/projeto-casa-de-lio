@@ -1,37 +1,36 @@
 {% extends 'base.html' %}
 {% block conteudo %}
-    <h1 class="text-center mb-4">Controlo de Presenças</h1>
+    <h2 class="text-primary fw-bold mb-4">Controlo de Presenças</h2>
 
-    <!-- Seletor de Data Dinâmico -->
-    <form method="GET" action="/" class="d-flex justify-content-center mb-4">
+    <form method="GET" action="/" class="d-flex mb-4">
         <div class="input-group shadow-sm" style="max-width: 300px;">
-            <span class="input-group-text bg-primary text-white border-primary">Data:</span>
+            <span class="input-group-text bg-primary text-white border-primary fw-bold">Data:</span>
             <input type="date" name="data_chamada" class="form-control border-primary" value="{{ data_atual }}" onchange="this.form.submit()">
         </div>
     </form>
 
-    <!-- Lista Permanente de Alunos -->
     {% for aluno in alunos %}
     <div class="card shadow-sm mb-3">
         <div class="card-body d-flex flex-column flex-md-row justify-content-between align-items-center">
             <div class="mb-3 mb-md-0 text-center text-md-start">
-                <h4 class="card-title mb-1">{{ aluno['nome'] }}</h4>
-                <p class="card-text text-muted mb-0">Turma: {{ aluno['turma'] }}</p>
+                <h4 class="card-title mb-2 fw-bold text-primary">{{ aluno['nome'] }}</h4>
+                <!-- Aplicação da nova etiqueta visual com a cor laranja -->
+                <span class="badge-institucional">Turma: {{ aluno['turma'] }}</span>
             </div>
             
             <div class="d-grid gap-2 d-md-block">
-                <!-- Lógica de botões: Preenchido se selecionado, contorno se não -->
+                <!-- Botões com cantos arredondados (rounded-pill) -->
                 <a href="/registrar/{{ aluno['id'] }}/{{ data_atual }}/Presente" 
-                   class="btn {% if aluno['status'] == 'Presente' %}btn-success{% else %}btn-outline-success{% endif %}">
+                   class="btn {% if aluno['status'] == 'Presente' %}btn-success{% else %}btn-outline-success{% endif %} rounded-pill px-4 fw-semibold">
                    Presente
                 </a>
                 <a href="/registrar/{{ aluno['id'] }}/{{ data_atual }}/Falta" 
-                   class="btn {% if aluno['status'] == 'Falta' %}btn-danger{% else %}btn-outline-danger{% endif %}">
+                   class="btn {% if aluno['status'] == 'Falta' %}btn-danger{% else %}btn-outline-danger{% endif %} rounded-pill px-4 fw-semibold">
                    Falta
                 </a>
                 <a href="/registrar/{{ aluno['id'] }}/{{ data_atual }}/Falta justificada" 
-                   class="btn {% if aluno['status'] == 'Falta justificada' %}btn-warning{% else %}btn-outline-warning{% endif %}">
-                   Falta Justificada
+                   class="btn {% if aluno['status'] == 'Falta justificada' %}btn-warning{% else %}btn-outline-warning{% endif %} rounded-pill px-4 fw-semibold">
+                   Justificada
                 </a>
             </div>
         </div>
@@ -40,6 +39,7 @@
 
     <hr class="mt-5">
     <div class="text-center mb-5">
-        <a href="/exportar" class="btn btn-secondary">Baixar Relatório (Excel/CSV)</a>
+        <!-- Botão Laranja de destaque para a ação de exportação -->
+        <a href="/exportar" class="btn btn-warning rounded-pill px-5 py-2 fw-bold shadow-sm text-white">Baixar Relatório (Excel/CSV)</a>
     </div>
 {% endblock %}
