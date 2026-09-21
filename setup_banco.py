@@ -25,6 +25,7 @@ cursor.execute('''
     )
 ''')
 
+
 # 2. Tabela de Presenças
 cursor.execute('''
     CREATE TABLE IF NOT EXISTS presencas (
