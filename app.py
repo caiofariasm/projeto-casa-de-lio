@@ -3,6 +3,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 from datetime import date
+from datetime import date, datetime
 import sqlite3
 
 app = FastAPI()
@@ -59,7 +60,7 @@ async def dashboard(request: Request):
     ''').fetchall()
     conexao.close()
     
-    datas = [linha['data'] for linha in historico]
+    datas = [datetime.strptime(linha['data'], '%Y-%m-%d').strftime('%d/%m/%Y') for linha in historico]
     presentes = [linha['presentes'] for linha in historico]
     faltas = [linha['faltas'] for linha in historico]
     justificadas = [linha['justificadas'] for linha in historico]
@@ -134,23 +135,28 @@ async def exportar(request: Request):
         return RedirectResponse(url="/login", status_code=303)
         
     conexao = pegar_conexao()
+    # Melhoria de Ordenação: Traz os dados organizados da data mais recente para a mais antiga
     relatorio = conexao.execute('''
         SELECT alunos.nome, alunos.turma, presencas.data, presencas.status 
         FROM presencas
         JOIN alunos ON presencas.aluno_id = alunos.id
+        ORDER BY presencas.data DESC, alunos.nome ASC
     ''').fetchall()
     conexao.close()
     
-    texto_csv = "Nome,Turma,Data,Status\n"
+    # Melhoria do Separador: Uso do ponto e vírgula (;) para o Excel em português ler as colunas perfeitamente
+    texto_csv = "Nome;Turma;Data;Status\n"
     for linha in relatorio:
-        texto_csv += f"{linha['nome']},{linha['turma']},{linha['data']},{linha['status']}\n"
+        # Aproveitamos a lógica que criaste antes para garantir o formato Dia/Mês/Ano
+        data_br = datetime.strptime(linha['data'], '%Y-%m-%d').strftime('%d/%m/%Y')
+        texto_csv += f"{linha['nome']};{linha['turma']};{data_br};{linha['status']}\n"
         
     return Response(
         content=texto_csv.encode('utf-8-sig'),
         media_type="text/csv; charset=utf-8-sig",
         headers={"Content-Disposition": "attachment; filename=relatorio_presencas.csv"}
     )
-
+    
 @app.get("/cadastrar", response_class=HTMLResponse)
 async def tela_cadastrar(request: Request):
     if not request.session.get('perfil'):

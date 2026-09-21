@@ -1,11 +1,18 @@
 {% extends 'base.html' %}
 {% block conteudo %}
+    <!-- Ferramentas do novo Calendário (Flatpickr) -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://npmcdn.com/flatpickr/dist/l10n/pt.js"></script>
+
     <h2 class="text-primary fw-bold mb-4">Controlo de Presenças</h2>
 
+    <!-- Seletor de Data com o novo Calendário -->
     <form method="GET" action="/" class="d-flex mb-4">
         <div class="input-group shadow-sm" style="max-width: 300px;">
             <span class="input-group-text bg-primary text-white border-primary fw-bold">Data:</span>
-            <input type="date" name="data_chamada" class="form-control border-primary" value="{{ data_atual }}" onchange="this.form.submit()">
+            <!-- Mudámos de type="date" para type="text" com um ID específico -->
+            <input type="text" id="calendario-br" name="data_chamada" class="form-control border-primary bg-white" value="{{ data_atual }}" placeholder="Selecione a data">
         </div>
     </form>
 
@@ -14,12 +21,10 @@
         <div class="card-body d-flex flex-column flex-md-row justify-content-between align-items-center">
             <div class="mb-3 mb-md-0 text-center text-md-start">
                 <h4 class="card-title mb-2 fw-bold text-primary">{{ aluno['nome'] }}</h4>
-                <!-- Aplicação da nova etiqueta visual com a cor laranja -->
                 <span class="badge-institucional">Turma: {{ aluno['turma'] }}</span>
             </div>
             
             <div class="d-grid gap-2 d-md-block">
-                <!-- Botões com cantos arredondados (rounded-pill) -->
                 <a href="/registrar/{{ aluno['id'] }}/{{ data_atual }}/Presente" 
                    class="btn {% if aluno['status'] == 'Presente' %}btn-success{% else %}btn-outline-success{% endif %} rounded-pill px-4 fw-semibold">
                    Presente
@@ -39,7 +44,20 @@
 
     <hr class="mt-5">
     <div class="text-center mb-5">
-        <!-- Botão Laranja de destaque para a ação de exportação -->
         <a href="/exportar" class="btn btn-warning rounded-pill px-5 py-2 fw-bold shadow-sm text-white">Baixar Relatório (Excel/CSV)</a>
     </div>
+
+    <!-- Script que ativa o calendário em português e formata a data visualmente -->
+    <script>
+        flatpickr("#calendario-br", {
+            locale: "pt",              // Traduz para português
+            dateFormat: "Y-m-d",       // O formato que vai para o Python (Ano-Mês-Dia)
+            altInput: true,            // Cria um campo visual alternativo
+            altFormat: "d/m/Y",        // O formato que a professora vê (Dia/Mês/Ano)
+            onChange: function(selectedDates, dateStr, instance) {
+                // Quando a pessoa clica numa data, o sistema recarrega automaticamente
+                instance.element.closest('form').submit();
+            }
+        });
+    </script>
 {% endblock %}
