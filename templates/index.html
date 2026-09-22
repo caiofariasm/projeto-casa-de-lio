@@ -16,44 +16,95 @@
     </form>
 
     <!-- LISTA DE ALUNOS (Layout Perfeitamente Alinhado) -->
-    {% for aluno in alunos %}
-    <div class="card shadow-sm mb-3 border-0" style="border-radius: 1rem;">
-        <div class="card-body p-4 d-flex flex-column flex-lg-row justify-content-between align-items-center gap-3">
-            
-            <!-- LADO ESQUERDO: Dados do Aluno -->
-            <div class="text-center text-lg-start w-100">
-                <h4 class="card-title mb-2 fw-bold text-primary">{{ aluno['nome'] }}</h4>
+    {% if alunos %}
+        {% for aluno in alunos %}
+        <div class="card shadow-sm mb-3 border-0" style="border-radius: 1rem;">
+            <div class="card-body p-4 d-flex flex-column flex-lg-row justify-content-between align-items-center gap-3">
                 
-                <!-- ÚNICA etiqueta de turma -->
-                <span class="badge-institucional me-2">Turma: {{ aluno['turma'] }}</span>
+                <!-- LADO ESQUERDO: Dados do Aluno -->
+                <div class="text-center text-lg-start w-100">
+                    <h4 class="card-title mb-2 fw-bold text-primary">{{ aluno['nome'] }}</h4>
+                    
+                    <!-- ÚNICA etiqueta de turma -->
+                    <span class="badge-institucional me-2">Turma: {{ aluno['turma'] }}</span>
+                    
+                    <!-- Alerta de 3 Faltas -->
+                    {% if aluno['total_faltas'] >= 3 %}
+                        <span class="badge bg-danger shadow-sm" style="border-radius: 0.4rem; padding: 0.35rem 0.6rem; font-size: 0.75rem; text-transform: uppercase;">
+                            ⚠️ Vaga Disponibilizada ({{ aluno['total_faltas'] }} Faltas)
+                        </span>
+                    {% endif %}
+                </div>
                 
-                <!-- Alerta de 3 Faltas -->
-                {% if aluno['total_faltas'] >= 3 %}
-                    <span class="badge bg-danger shadow-sm" style="border-radius: 0.4rem; padding: 0.35rem 0.6rem; font-size: 0.75rem; text-transform: uppercase;">
-                        ⚠️ Vaga Disponibilizada ({{ aluno['total_faltas'] }} Faltas)
-                    </span>
-                {% endif %}
+                <!-- LADO DIREITO: Botões de Chamada e Atestado -->
+                <div class="d-flex flex-wrap justify-content-center justify-content-lg-end align-items-center gap-2 w-100">
+                    <a href="/registrar/{{ aluno['id'] }}/{{ data_atual }}/Presente" 
+                       class="btn {% if aluno['status'] == 'Presente' %}btn-success{% else %}btn-outline-success{% endif %} rounded-pill px-3 fw-semibold">
+                       Presente
+                    </a>
+                    <a href="/registrar/{{ aluno['id'] }}/{{ data_atual }}/Falta" 
+                       class="btn {% if aluno['status'] == 'Falta' %}btn-danger{% else %}btn-outline-danger{% endif %} rounded-pill px-3 fw-semibold">
+                       Falta
+                    </a>
+                    <a href="/registrar/{{ aluno['id'] }}/{{ data_atual }}/Falta justificada" 
+                       class="btn {% if aluno['status'] == 'Falta justificada' %}btn-warning{% else %}btn-outline-warning{% endif %} rounded-pill px-3 fw-semibold">
+                       Justificada
+                    </a>
+                    
+                    <!-- Divisor Visual -->
+                    <div class="vr d-none d-lg-block mx-1"></div>
+                    
+                    <!-- NOVO: Botão de Atestado -->
+                    <button type="button" class="btn btn-outline-secondary rounded-pill px-3 fw-semibold" data-bs-toggle="modal" data-bs-target="#modalAtestado{{ aluno['id'] }}">
+                        📎 Anexar
+                    </button>
+                    
+                    <!-- Se já existir um atestado salvo no dia, mostra o botão azul de visualizar -->
+                    {% if aluno['atestado'] %}
+                        <a href="/uploads/{{ aluno['atestado'] }}" target="_blank" class="btn btn-info rounded-pill px-3 fw-semibold text-white shadow-sm">
+                            📄 Ver
+                        </a>
+                    {% endif %}
+                </div>
+                
             </div>
-            
-            <!-- LADO DIREITO: Botões de Chamada -->
-            <div class="d-flex flex-wrap justify-content-center justify-content-lg-end gap-2 w-100">
-                <a href="/registrar/{{ aluno['id'] }}/{{ data_atual }}/Presente" 
-                   class="btn {% if aluno['status'] == 'Presente' %}btn-success{% else %}btn-outline-success{% endif %} rounded-pill px-4 fw-semibold">
-                   Presente
-                </a>
-                <a href="/registrar/{{ aluno['id'] }}/{{ data_atual }}/Falta" 
-                   class="btn {% if aluno['status'] == 'Falta' %}btn-danger{% else %}btn-outline-danger{% endif %} rounded-pill px-4 fw-semibold">
-                   Falta
-                </a>
-                <a href="/registrar/{{ aluno['id'] }}/{{ data_atual }}/Falta justificada" 
-                   class="btn {% if aluno['status'] == 'Falta justificada' %}btn-warning{% else %}btn-outline-warning{% endif %} rounded-pill px-4 fw-semibold">
-                   Justificada
-                </a>
-            </div>
-            
         </div>
-    </div>
-    {% endfor %}
+        
+        <!-- NOVO: JANELA FLUTUANTE (Modal) DE ATESTADO DO ALUNO -->
+        <div class="modal fade" id="modalAtestado{{ aluno['id'] }}" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content shadow-lg border-0" style="border-radius: 1.5rem;">
+                    <div class="modal-header bg-secondary text-white" style="border-top-left-radius: 1.5rem; border-top-right-radius: 1.5rem;">
+                        <h5 class="modal-title fw-bold">Anexar Atestado - {{ aluno['nome'] }}</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                    </div>
+                    <div class="modal-body p-4">
+                        <!-- O enctype="multipart/form-data" é obrigatório para enviar arquivos no HTML -->
+                        <form action="/anexar_atestado/{{ aluno['id'] }}/{{ data_atual }}" method="POST" enctype="multipart/form-data">
+                            <div class="mb-4">
+                                <label class="form-label fw-bold">Selecione o documento (Imagem ou PDF)</label>
+                                <input type="file" name="arquivo" class="form-control rounded-pill border-secondary" required accept=".pdf, image/*">
+                                <small class="text-muted px-2 d-block mt-2">
+                                    ⚠️ O envio deste arquivo preencherá o status do aluno automaticamente como <strong>"Falta Justificada"</strong>.
+                                </small>
+                            </div>
+                            <div class="d-grid mt-2">
+                                <button type="submit" class="btn btn-warning rounded-pill fw-bold text-white shadow-sm py-2">
+                                    Salvar e Justificar Falta
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+        <div class="alert alert-info text-center mt-4 shadow-sm" style="border-radius: 1rem;">
+            <h4 class="alert-heading fw-bold">Lista Vazia</h4>
+            <p>Nenhum aluno cadastrado ou todos já foram registrados.</p>
+        </div>
+    {% endif %}
 
     <hr class="mt-5">
     

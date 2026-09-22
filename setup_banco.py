@@ -3,14 +3,14 @@ import sqlite3
 conexao = sqlite3.connect('banco.db')
 cursor = conexao.cursor()
 
-# 1. Tabela de Alunos (Estrutura CRM Completa)
+# 1. Tabela de Alunos (Estrutura Completa da Ficha de Matrícula)
 cursor.execute('''
     CREATE TABLE IF NOT EXISTS alunos (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         nome TEXT NOT NULL,
-        data_nascimento TEXT NOT NULL,
         turma TEXT NOT NULL,
-        telefone TEXT NOT NULL,
+        data_nascimento TEXT,
+        telefone TEXT,
         cep TEXT,
         rua TEXT,
         numero TEXT,
@@ -21,23 +21,23 @@ cursor.execute('''
         telefone_emergencia TEXT,
         condicao_medica TEXT,
         nome_responsavel TEXT,
-        autorizacao_pais BOOLEAN
+        autorizacao_pais INTEGER
     )
 ''')
 
-
-# 2. Tabela de Presenças
+# 2. Tabela de Presenças (Com suporte a upload de atestados)
 cursor.execute('''
     CREATE TABLE IF NOT EXISTS presencas (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         aluno_id INTEGER,
         data TEXT NOT NULL,
         status TEXT NOT NULL,
+        atestado TEXT,
         FOREIGN KEY (aluno_id) REFERENCES alunos (id)
     )
 ''')
 
-# 3. Tabela de Utilizadores (A que estava a faltar!)
+# 3. Tabela de Usuários (Controle de Acesso da Coordenação e Professores)
 cursor.execute('''
     CREATE TABLE IF NOT EXISTS usuarios (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -47,11 +47,14 @@ cursor.execute('''
     )
 ''')
 
-# Cria as contas padrão automaticamente para não ficares trancado fora do sistema
-cursor.execute("INSERT OR IGNORE INTO usuarios (login, senha, perfil) VALUES ('coord', 'admin', 'coordenacao')")
-cursor.execute("INSERT OR IGNORE INTO usuarios (login, senha, perfil) VALUES ('prof', '123', 'professor')")
+# 4. Criar os utilizadores padrão (As Fechaduras do Sistema)
+cursor.execute('SELECT COUNT(*) FROM usuarios')
+if cursor.fetchone()[0] == 0:
+    # Acesso Total
+    cursor.execute("INSERT INTO usuarios (login, senha, perfil) VALUES ('coord', '123', 'coordenacao')")
+    # Acesso Restrito à Chamada
+    cursor.execute("INSERT INTO usuarios (login, senha, perfil) VALUES ('prof', '123', 'professor')")
 
 conexao.commit()
 conexao.close()
-
-print("Banco de dados recriado com sucesso! (Alunos, Presenças e Usuários)")
+print("✅ Banco de dados recriado com sucesso! Tabelas prontas e utilizadores gerados.")

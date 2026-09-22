@@ -4,7 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Casa de Lió - Sistema</title>
+    
+    <!-- Ícone que aparece na aba do navegador (Favicon) -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏫</text></svg>">
+    
+    <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
     <style>
         :root {
             /* Paleta Oficial ADRA */
@@ -94,10 +100,11 @@
                     
                     {% if request.session.get('perfil') == 'coordenacao' %}
                         <li class="nav-item"><a class="nav-link fw-semibold" href="/dashboard">Dashboard</a></li>
-                        <li class="nav-item"><a class="nav-link fw-semibold" href="/cadastrar">Cadastrar Aluno</a></li>
+                        <li class="nav-item"><a class="nav-link fw-semibold" href="/alunos">Alunos</a></li>
+                        <li class="nav-item"><a class="nav-link fw-semibold" href="/cadastrar">Cadastrar</a></li>
                     {% endif %}
                     
-                    <!-- Menu Suspenso (Dropdown) Integrado ao Novo Design -->
+                    <!-- Menu Suspenso (Dropdown) com Trava de Segurança -->
                     <li class="nav-item dropdown ms-lg-3 mt-2 mt-lg-0">
                         <a class="nav-link fw-bold dropdown-toggle" href="#" id="menuPerfil" role="button" data-bs-toggle="dropdown" aria-expanded="false" style="color: var(--laranja-adra) !important;">
                             Opções

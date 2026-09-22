@@ -1,14 +1,20 @@
-from fastapi import FastAPI, Request, Form
+from fastapi import FastAPI, Request, Form, UploadFile, File
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
+from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
-from datetime import date
-from datetime import date, datetime
 import sqlite3
+from datetime import date, datetime
+import os
+import shutil
 
 app = FastAPI()
 app.add_middleware(SessionMiddleware, secret_key="chave_secreta_casa_de_lio")
 templates = Jinja2Templates(directory="templates")
+
+# NOVO: Garante que a pasta 'uploads' existe e permite que o navegador mostre os arquivos
+os.makedirs("uploads", exist_ok=True)
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 def pegar_conexao():
     conexao = sqlite3.connect('banco.db')
@@ -46,7 +52,6 @@ async def dashboard(request: Request):
     for linha in totais:
         dados_grafico[linha['status']] = linha['quantidade']
         
-    # Cálculo da Taxa de Assiduidade (%)
     total_registos = sum(dados_grafico.values())
     taxa_assiduidade = round((dados_grafico['Presente'] / total_registos * 100), 1) if total_registos > 0 else 0
     
@@ -60,7 +65,6 @@ async def dashboard(request: Request):
         ORDER BY data ASC
     ''').fetchall()
     
-    # NOVO: Desempenho por Turma
     turmas_db = conexao.execute('''
         SELECT alunos.turma,
                SUM(CASE WHEN presencas.status = 'Presente' THEN 1 ELSE 0 END) as presentes,
@@ -76,9 +80,9 @@ async def dashboard(request: Request):
         "faltas": [t['faltas'] for t in turmas_db]
     }
     
-    # NOVO: Alerta de Faltas (Top 5 alunos em risco)
-    alunos_risco = conexao.execute('''
-        SELECT alunos.nome, alunos.turma, COUNT(presencas.id) as total_faltas
+    # NOVO: Alerta de Faltas com captação de telefone para WhatsApp
+    alunos_risco_db = conexao.execute('''
+        SELECT alunos.nome, alunos.turma, alunos.telefone, COUNT(presencas.id) as total_faltas
         FROM presencas
         JOIN alunos ON presencas.aluno_id = alunos.id
         WHERE presencas.status = 'Falta'
@@ -86,6 +90,16 @@ async def dashboard(request: Request):
         ORDER BY total_faltas DESC
         LIMIT 5
     ''').fetchall()
+    
+    # Prepara os números de telefone removendo traços e espaços para o WhatsApp
+    alunos_risco = []
+    for aluno in alunos_risco_db:
+        aluno_dict = dict(aluno)
+        telefone_limpo = ''.join(filter(str.isdigit, aluno_dict['telefone']))
+        if len(telefone_limpo) >= 10:
+            telefone_limpo = "55" + telefone_limpo # Adiciona o DDI do Brasil automaticamente
+        aluno_dict['telefone_whatsapp'] = telefone_limpo
+        alunos_risco.append(aluno_dict)
     
     conexao.close()
     
@@ -98,15 +112,10 @@ async def dashboard(request: Request):
         request=request, 
         name="dashboard.html", 
         context={
-            "total_alunos": total_alunos, 
-            "dados_grafico": dados_grafico,
-            "taxa_assiduidade": taxa_assiduidade,
-            "datas": datas, 
-            "presentes": presentes, 
-            "faltas": faltas,
-            "justificadas": justificadas,
-            "dados_turmas": dados_turmas,
-            "alunos_risco": alunos_risco
+            "total_alunos": total_alunos, "dados_grafico": dados_grafico,
+            "taxa_assiduidade": taxa_assiduidade, "datas": datas, 
+            "presentes": presentes, "faltas": faltas, "justificadas": justificadas,
+            "dados_turmas": dados_turmas, "alunos_risco": alunos_risco
         }
     )
       
@@ -121,13 +130,12 @@ async def home(request: Request, data_chamada: str = None):
     if not request.session.get('perfil'):
         return RedirectResponse(url="/login", status_code=303)
         
-    # Se a professora não escolheu uma data, usa o dia de hoje
     data_atual = data_chamada if data_chamada else date.today().isoformat()
         
     conexao = pegar_conexao()
-    # ATUALIZAÇÃO: Conta o histórico total de faltas do aluno para a regra da perda de vaga
+    # ATUALIZAÇÃO: Agora o SQL também puxa a coluna 'atestado'
     alunos = conexao.execute('''
-        SELECT a.id, a.nome, a.turma, p.status,
+        SELECT a.id, a.nome, a.turma, p.status, p.atestado,
                (SELECT COUNT(*) FROM presencas WHERE aluno_id = a.id AND status = 'Falta') as total_faltas
         FROM alunos a
         LEFT JOIN presencas p ON a.id = p.aluno_id AND p.data = ?
@@ -139,6 +147,34 @@ async def home(request: Request, data_chamada: str = None):
         name="index.html", 
         context={"alunos": alunos, "data_atual": data_atual}
     )
+
+# NOVO: Rota que recebe o arquivo PDF/Imagem e justifica a falta automaticamente
+@app.post("/anexar_atestado/{aluno_id}/{data_chamada}")
+async def anexar_atestado(request: Request, aluno_id: int, data_chamada: str, arquivo: UploadFile = File(...)):
+    if not request.session.get('perfil'):
+        return RedirectResponse(url="/login", status_code=303)
+        
+    # Limpa o nome do arquivo e salva na pasta uploads
+    nome_seguro = f"atestado_{aluno_id}_{data_chamada}_{arquivo.filename.replace(' ', '_')}"
+    caminho_salvar = f"uploads/{nome_seguro}"
+    
+    with open(caminho_salvar, "wb") as buffer:
+        shutil.copyfileobj(arquivo.file, buffer)
+        
+    conexao = pegar_conexao()
+    existe = conexao.execute('SELECT id FROM presencas WHERE aluno_id = ? AND data = ?', (aluno_id, data_chamada)).fetchone()
+    
+    # Automatiza a Justificativa marcando 'Falta justificada' e anexando o arquivo
+    if existe:
+        conexao.execute('UPDATE presencas SET status = ?, atestado = ? WHERE id = ?', ('Falta justificada', nome_seguro, existe['id']))
+    else:
+        conexao.execute('INSERT INTO presencas (aluno_id, data, status, atestado) VALUES (?, ?, ?, ?)', (aluno_id, data_chamada, 'Falta justificada', nome_seguro))
+        
+    conexao.commit()
+    conexao.close()
+    
+    # Devolve a tela atualizada
+    return RedirectResponse(url=f"/?data_chamada={data_chamada}", status_code=303)
 
 @app.get("/registrar/{aluno_id}/{data_chamada}/{status}")
 async def registrar(request: Request, aluno_id: int, data_chamada: str, status: str):
@@ -222,26 +258,21 @@ async def salvar_cadastro(request: Request):
     data_nascimento = formulario.get('data_nascimento')
     turma = formulario.get('turma')
     telefone = formulario.get('telefone')
-    
-    # Endereço desmembrado
     cep = formulario.get('cep', '')
     rua = formulario.get('rua', '')
     numero = formulario.get('numero', '')
     bairro = formulario.get('bairro', '')
     cidade = formulario.get('cidade', '')
     referencia = formulario.get('referencia', '')
-    
-    # Saúde e Emergência
     contato_emergencia = formulario.get('contato_emergencia', '')
     telefone_emergencia = formulario.get('telefone_emergencia', '')
     condicao_medica = formulario.get('condicao_medica', '')
-    
-    # Menores de Idade
     nome_responsavel = formulario.get('nome_responsavel', '')
     autorizacao = 1 if formulario.get('autorizacao') == 'on' else 0
     
     conexao = pegar_conexao()
-    conexao.execute('''
+    cursor = conexao.cursor()
+    cursor.execute('''
         INSERT INTO alunos (
             nome, data_nascimento, turma, telefone, 
             cep, rua, numero, bairro, cidade, referencia,
@@ -250,10 +281,79 @@ async def salvar_cadastro(request: Request):
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''', (nome, data_nascimento, turma, telefone, cep, rua, numero, bairro, cidade, referencia, 
           contato_emergencia, telefone_emergencia, condicao_medica, nome_responsavel, autorizacao))
+    
+    aluno_id = cursor.lastrowid # Capta o ID exato do aluno que acabou de ser gravado
     conexao.commit()
     conexao.close()
     
-    return RedirectResponse(url="/dashboard", status_code=303)
+    # NOVO: Em vez do Dashboard, atira para a ficha de impressão
+    return RedirectResponse(url=f"/ficha/{aluno_id}", status_code=303)
+
+# NOVO: Rota exclusiva para gerar a ficha em tamanho A4
+@app.get("/ficha/{aluno_id}", response_class=HTMLResponse)
+async def gerar_ficha(request: Request, aluno_id: int):
+    if request.session.get('perfil') != 'coordenacao':
+        return RedirectResponse(url="/", status_code=303)
+        
+    conexao = pegar_conexao()
+    aluno = conexao.execute('SELECT * FROM alunos WHERE id = ?', (aluno_id,)).fetchone()
+    conexao.close()
+    
+    return templates.TemplateResponse(request=request, name="ficha.html", context={"aluno": aluno})
+
+@app.post("/cadastrar")
+async def salvar_cadastro(request: Request):
+    if request.session.get('perfil') != 'coordenacao':
+        return RedirectResponse(url="/", status_code=303)
+        
+    formulario = await request.form()
+    
+    nome = formulario.get('nome')
+    data_nascimento = formulario.get('data_nascimento')
+    turma = formulario.get('turma')
+    telefone = formulario.get('telefone')
+    cep = formulario.get('cep', '')
+    rua = formulario.get('rua', '')
+    numero = formulario.get('numero', '')
+    bairro = formulario.get('bairro', '')
+    cidade = formulario.get('cidade', '')
+    referencia = formulario.get('referencia', '')
+    contato_emergencia = formulario.get('contato_emergencia', '')
+    telefone_emergencia = formulario.get('telefone_emergencia', '')
+    condicao_medica = formulario.get('condicao_medica', '')
+    nome_responsavel = formulario.get('nome_responsavel', '')
+    autorizacao = 1 if formulario.get('autorizacao') == 'on' else 0
+    
+    conexao = pegar_conexao()
+    cursor = conexao.cursor()
+    cursor.execute('''
+        INSERT INTO alunos (
+            nome, data_nascimento, turma, telefone, 
+            cep, rua, numero, bairro, cidade, referencia,
+            contato_emergencia, telefone_emergencia, condicao_medica,
+            nome_responsavel, autorizacao_pais
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (nome, data_nascimento, turma, telefone, cep, rua, numero, bairro, cidade, referencia, 
+          contato_emergencia, telefone_emergencia, condicao_medica, nome_responsavel, autorizacao))
+    
+    aluno_id = cursor.lastrowid # Capta o ID exato do aluno que acabou de ser gravado
+    conexao.commit()
+    conexao.close()
+    
+    # NOVO: Em vez do Dashboard, atira para a ficha de impressão
+    return RedirectResponse(url=f"/ficha/{aluno_id}", status_code=303)
+
+# NOVO: Rota exclusiva para gerar a ficha em tamanho A4
+@app.get("/ficha/{aluno_id}", response_class=HTMLResponse)
+async def gerar_ficha(request: Request, aluno_id: int):
+    if request.session.get('perfil') != 'coordenacao':
+        return RedirectResponse(url="/", status_code=303)
+        
+    conexao = pegar_conexao()
+    aluno = conexao.execute('SELECT * FROM alunos WHERE id = ?', (aluno_id,)).fetchone()
+    conexao.close()
+    
+    return templates.TemplateResponse(request=request, name="ficha.html", context={"aluno": aluno})
 
 @app.get("/usuarios/novo", response_class=HTMLResponse)
 async def tela_novo_usuario(request: Request):
@@ -288,3 +388,52 @@ async def salvar_usuario(request: Request):
         
     # Após criar a conta, devolve a coordenação ao Painel Analítico
     return RedirectResponse(url="/dashboard", status_code=303)
+
+@app.get("/alunos", response_class=HTMLResponse)
+async def listar_alunos(request: Request):
+    # Proteção: Apenas a coordenação pode ver o diretório completo
+    if request.session.get('perfil') != 'coordenacao':
+        return RedirectResponse(url="/", status_code=303)
+        
+    conexao = pegar_conexao()
+    # Busca os alunos em ordem alfabética
+    alunos_db = conexao.execute('''
+        SELECT id, nome, turma, telefone, data_nascimento 
+        FROM alunos 
+        ORDER BY nome ASC
+    ''').fetchall()
+    conexao.close()
+    
+    return templates.TemplateResponse(
+        request=request, 
+        name="lista_alunos.html", 
+        context={"alunos": alunos_db}
+    )
+    
+    # NOVO: Rota que recebe o arquivo PDF/Imagem e justifica a falta automaticamente
+@app.post("/anexar_atestado/{aluno_id}/{data_chamada}")
+async def anexar_atestado(request: Request, aluno_id: int, data_chamada: str, arquivo: UploadFile = File(...)):
+    if not request.session.get('perfil'):
+        return RedirectResponse(url="/login", status_code=303)
+        
+    # Limpa o nome do arquivo e salva na pasta uploads
+    nome_seguro = f"atestado_{aluno_id}_{data_chamada}_{arquivo.filename.replace(' ', '_')}"
+    caminho_salvar = f"uploads/{nome_seguro}"
+    
+    with open(caminho_salvar, "wb") as buffer:
+        shutil.copyfileobj(arquivo.file, buffer)
+        
+    conexao = pegar_conexao()
+    existe = conexao.execute('SELECT id FROM presencas WHERE aluno_id = ? AND data = ?', (aluno_id, data_chamada)).fetchone()
+    
+    # Automatiza a Justificativa marcando 'Falta justificada' e anexando o arquivo
+    if existe:
+        conexao.execute('UPDATE presencas SET status = ?, atestado = ? WHERE id = ?', ('Falta justificada', nome_seguro, existe['id']))
+    else:
+        conexao.execute('INSERT INTO presencas (aluno_id, data, status, atestado) VALUES (?, ?, ?, ?)', (aluno_id, data_chamada, 'Falta justificada', nome_seguro))
+        
+    conexao.commit()
+    conexao.close()
+    
+    # Devolve a tela atualizada preservando a data escolhida
+    return RedirectResponse(url=f"/?data_chamada={data_chamada}", status_code=303)

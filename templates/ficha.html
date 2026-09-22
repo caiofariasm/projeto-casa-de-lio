@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+    <meta charset="UTF-8">
+    <title>Ficha de Matrícula - {{ aluno['nome'] }}</title>
+    <style>
+        body { font-family: 'Segoe UI', Arial, sans-serif; padding: 40px; color: #000; background-color: #f4f6f5; }
+        .folha-a4 { background-color: #fff; max-width: 800px; margin: 0 auto; padding: 50px; box-shadow: 0 0 15px rgba(0,0,0,0.1); }
+        .cabecalho { text-align: center; border-bottom: 2px solid #16463d; padding-bottom: 20px; margin-bottom: 30px; }
+        .cabecalho h1 { color: #16463d; margin: 0; font-size: 28px; text-transform: uppercase; letter-spacing: 1px; }
+        .cabecalho p { color: #666; margin: 5px 0 0 0; }
+        
+        .sessao { font-weight: bold; margin-top: 30px; color: #16463d; border-bottom: 1px solid #ccc; padding-bottom: 5px; font-size: 18px; }
+        .linha-dado { margin: 12px 0; font-size: 15px; display: flex; }
+        .rotulo { font-weight: bold; color: #444; width: 220px; flex-shrink: 0; }
+        .valor { color: #222; border-bottom: 1px dotted #999; flex-grow: 1; }
+        
+        .caixa-assinatura { margin-top: 60px; text-align: center; }
+        .linha-assinatura { border-top: 1px solid #000; width: 70%; margin: 0 auto 10px auto; padding-top: 5px; }
+        .termo { text-align: justify; font-size: 12px; color: #555; margin-bottom: 50px; line-height: 1.5; }
+        
+        /* Oculta os botões quando a folha for efetivamente impressa */
+        @media print {
+            .nao-imprimir { display: none !important; }
+            body { padding: 0; background-color: #fff; }
+            .folha-a4 { box-shadow: none; padding: 0; max-width: 100%; }
+        }
+        
+        .btn-imprimir { background-color: #16463d; color: white; padding: 12px 25px; border: none; border-radius: 50px; cursor: pointer; font-size: 16px; font-weight: bold; display: inline-block; text-decoration: none; }
+        .btn-voltar { background-color: #e67e22; color: white; padding: 12px 25px; border: none; border-radius: 50px; cursor: pointer; font-size: 16px; font-weight: bold; display: inline-block; text-decoration: none; margin-left: 10px; }
+    </style>
+</head>
+<body>
+    <div class="nao-imprimir" style="text-align: center; margin-bottom: 20px;">
+        <button class="btn-imprimir" onclick="window.print()">🖨️ Imprimir Ficha Física</button>
+        <a href="/dashboard" class="btn-voltar">Voltar ao Painel</a>
+    </div>
+    
+    <div class="folha-a4">
+        <div class="cabecalho">
+            <h1>CASA DE LIÓ</h1>
+            <p>Ficha de Registo Institucional e Termo de Responsabilidade</p>
+        </div>
+        
+        <div class="sessao">1. Identificação do Beneficiário</div>
+        <div class="linha-dado"><div class="rotulo">Nome Completo:</div> <div class="valor">{{ aluno['nome'] }}</div></div>
+        <div class="linha-dado"><div class="rotulo">Data de Nascimento:</div> <div class="valor">{{ aluno['data_nascimento'] }}</div></div>
+        <div class="linha-dado"><div class="rotulo">Turma Alocada:</div> <div class="valor">{{ aluno['turma'] }}</div></div>
+        <div class="linha-dado"><div class="rotulo">Telefone Pessoal:</div> <div class="valor">{{ aluno['telefone'] }}</div></div>
+        
+        <div class="sessao">2. Localização e Morada</div>
+        <div class="linha-dado"><div class="rotulo">Endereço (Rua e Nº):</div> <div class="valor">{{ aluno['rua'] }}, {{ aluno['numero'] }}</div></div>
+        <div class="linha-dado"><div class="rotulo">Bairro e CEP:</div> <div class="valor">{{ aluno['bairro'] }} | CEP: {{ aluno['cep'] }}</div></div>
+        <div class="linha-dado"><div class="rotulo">Cidade / Estado:</div> <div class="valor">{{ aluno['cidade'] }}</div></div>
+        <div class="linha-dado"><div class="rotulo">Ponto de Referência:</div> <div class="valor">{{ aluno['referencia'] }}</div></div>
+        
+        <div class="sessao">3. Saúde e Segurança</div>
+        <div class="linha-dado"><div class="rotulo">Contato de Emergência:</div> <div class="valor">{{ aluno['contato_emergencia'] }} ({{ aluno['telefone_emergencia'] }})</div></div>
+        <div class="linha-dado"><div class="rotulo">Condições Médicas/Alergias:</div> <div class="valor">{{ aluno['condicao_medica'] or 'Nenhuma declarada no momento do registo.' }}</div></div>
+        
+        {% if aluno['nome_responsavel'] %}
+        <div class="sessao">4. Assinatura do Responsável Legal</div>
+        <div class="linha-dado"><div class="rotulo">Nome do Responsável:</div> <div class="valor">{{ aluno['nome_responsavel'] }}</div></div>
+        
+        <div class="caixa-assinatura">
+            <p class="termo">
+                Declaro, sob as penas da lei, serem inteiramente verdadeiras as informações prestadas neste documento. 
+                Autorizo a participação do menor nas atividades institucionais da Casa de Lió, comprometendo-me a zelar pela sua assiduidade 
+                e concordando com os termos de convivência da instituição filantrópica. Estou ciente de que a ausência não justificada em 3 aulas consecutivas implicará na libertação da vaga.
+            </p>
+            <div class="linha-assinatura"></div>
+            Assinatura do Pai, Mãe ou Responsável Legal<br>
+            <span style="font-size: 13px; color: #555;">Data: ____/____/20____</span>
+        </div>
+        {% else %}
+        <div class="sessao">4. Assinatura e Termo</div>
+        <div class="caixa-assinatura">
+            <p class="termo">
+                Declaro, sob as penas da lei, serem inteiramente verdadeiras as informações prestadas neste documento. 
+                Comprometo-me a zelar pela minha assiduidade e concordo com os termos de convivência da Casa de Lió. 
+                Estou ciente de que a ausência não justificada em 3 aulas consecutivas implicará na libertação da minha vaga.
+            </p>
+            <div class="linha-assinatura"></div>
+            Assinatura do Beneficiário<br>
+            <span style="font-size: 13px; color: #555;">Data: ____/____/20____</span>
+        </div>
+        {% endif %}
+    </div>
+</body>
+</html>

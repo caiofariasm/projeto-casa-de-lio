@@ -67,12 +67,13 @@
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table table-hover mb-0">
+                    <table class="table table-hover mb-0 align-middle">
                         <thead class="table-light">
                             <tr>
                                 <th>Aluno</th>
                                 <th>Turma</th>
                                 <th class="text-center">Faltas</th>
+                                <th class="text-center">Ação</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -85,11 +86,20 @@
                                     {% endif %}
                                 </td>
                                 <td><span class="badge bg-secondary">{{ aluno['turma'] }}</span></td>
-                                <td class="text-center fw-bold text-danger">{{ aluno['total_faltas'] }}</td>
+                                <td class="text-center fw-bold text-danger fs-5">{{ aluno['total_faltas'] }}</td>
+                                <td class="text-center">
+                                    <!-- INTEGRAÇÃO WHATSAPP -->
+                                    <a href="https://wa.me/{{ aluno['telefone_whatsapp'] }}?text=Olá, notámos que o/a {{ aluno['nome'] }} faltou às últimas aulas na Casa de Lió. Gostaríamos de saber se está tudo bem e se precisam de algum apoio da instituição." 
+                                       target="_blank" 
+                                       class="btn btn-sm btn-success rounded-pill fw-bold shadow-sm"
+                                       style="background-color: #25D366; border-color: #25D366;">
+                                        💬 Contatar
+                                    </a>
+                                </td>
                             </tr>
                             {% else %}
                             <tr>
-                                <td colspan="3" class="text-center text-muted py-4">Nenhuma falta registada.</td>
+                                <td colspan="4" class="text-center text-muted py-4">Nenhuma falta registada.</td>
                             </tr>
                             {% endfor %}
                         </tbody>
