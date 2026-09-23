@@ -3,5 +3,6 @@ uvicorn
 jinja2
 python-multipart
 itsdangerous
-
-
+bcrypt
+pyjwt
+python-dotenv

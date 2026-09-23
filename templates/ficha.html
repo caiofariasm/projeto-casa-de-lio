@@ -59,26 +59,24 @@
         <div class="linha-dado"><div class="rotulo">Condições Médicas/Alergias:</div> <div class="valor">{{ aluno['condicao_medica'] or 'Nenhuma declarada no momento do registo.' }}</div></div>
         
         {% if aluno['nome_responsavel'] %}
-        <div class="sessao">4. Assinatura do Responsável Legal</div>
+        <div class="sessao">4. Termo de Responsabilidade e Consentimento LGPD</div>
         <div class="linha-dado"><div class="rotulo">Nome do Responsável:</div> <div class="valor">{{ aluno['nome_responsavel'] }}</div></div>
         
         <div class="caixa-assinatura">
             <p class="termo">
                 Declaro, sob as penas da lei, serem inteiramente verdadeiras as informações prestadas neste documento. 
-                Autorizo a participação do menor nas atividades institucionais da Casa de Lió, comprometendo-me a zelar pela sua assiduidade 
-                e concordando com os termos de convivência da instituição filantrópica. Estou ciente de que a ausência não justificada em 3 aulas consecutivas implicará na libertação da vaga.
+                Autorizo a participação do menor nas atividades institucionais da Casa de Lió e, em estrita observância à Lei Geral de Proteção de Dados (Lei nº 13.709/2018 - LGPD), autorizo expressamente a coleta, o armazenamento e o tratamento dos dados pessoais e sensíveis (incluindo condições médicas para atendimento emergencial) exclusivamente para os fins educacionais, de segurança e de assistência social da instituição. Estou ciente de que a ausência não justificada em 3 aulas consecutivas implicará na disponibilização da vaga.
             </p>
             <div class="linha-assinatura"></div>
             Assinatura do Pai, Mãe ou Responsável Legal<br>
             <span style="font-size: 13px; color: #555;">Data: ____/____/20____</span>
         </div>
         {% else %}
-        <div class="sessao">4. Assinatura e Termo</div>
+        <div class="sessao">4. Termo de Compromisso e Consentimento LGPD</div>
         <div class="caixa-assinatura">
             <p class="termo">
                 Declaro, sob as penas da lei, serem inteiramente verdadeiras as informações prestadas neste documento. 
-                Comprometo-me a zelar pela minha assiduidade e concordo com os termos de convivência da Casa de Lió. 
-                Estou ciente de que a ausência não justificada em 3 aulas consecutivas implicará na libertação da minha vaga.
+                Comprometo-me a zelar pela minha assiduidade e, em estrita observância à Lei Geral de Proteção de Dados (Lei nº 13.709/2018 - LGPD), autorizo expressamente a coleta, o armazenamento e o tratamento dos meus dados pessoais e dados sensíveis de saúde estritamente para finalidades educacionais, institucionais e de emergência da Casa de Lió. Estou ciente de que a ausência não justificada em 3 aulas consecutivas implicará na disponibilização da vaga.
             </p>
             <div class="linha-assinatura"></div>
             Assinatura do Beneficiário<br>
