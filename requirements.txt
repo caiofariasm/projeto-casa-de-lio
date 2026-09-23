@@ -6,3 +6,4 @@ itsdangerous
 bcrypt
 pyjwt
 python-dotenv
+boto3

@@ -136,5 +136,40 @@
     </div>
     
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Script Global de Máscara de Telefone: (73) 98191-7878 -->
+    <script>
+        function aplicarMascaraTelefone(input) {
+            function formatar(valor) {
+                if (!valor) return '';
+                valor = valor.replace(/\D/g, '').substring(0, 11);
+                if (valor.length === 11) {
+                    return valor.replace(/^(\d{2})(\d{5})(\d{4})$/, '($1) $2-$3');
+                } else if (valor.length > 6) {
+                    return valor.replace(/^(\d{2})(\d{4})(\d{0,4})$/, '($1) $2-$3');
+                } else if (valor.length > 2) {
+                    return valor.replace(/^(\d{2})(\d{0,5})$/, '($1) $2');
+                } else if (valor.length > 0) {
+                    return valor.replace(/^(\d*)$/, '($1');
+                }
+                return '';
+            }
+
+            input.addEventListener('input', function(e) {
+                input.value = formatar(input.value);
+            });
+
+            // Formata o valor existente ao carregar a página (ex: tela de edição)
+            if (input.value) {
+                input.value = formatar(input.value);
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            document.querySelectorAll('input[type="tel"], input[name="telefone"], input[name="telefone_emergencia"], .mascara-telefone').forEach(function(el) {
+                aplicarMascaraTelefone(el);
+            });
+        });
+    </script>
 </body>
 </html>

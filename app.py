@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Request, Form, UploadFile, File
-from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from fastapi.responses import HTMLResponse, RedirectResponse, Response, FileResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
@@ -11,6 +11,7 @@ from pathlib import Path
 import bcrypt
 import jwt
 from dotenv import load_dotenv
+from storage import salvar_arquivo, remover_arquivo, obter_url_arquivo
 
 BASE_DIR = Path(__file__).resolve().parent
 load_dotenv(BASE_DIR / ".env")
@@ -26,9 +27,21 @@ app = FastAPI()
 app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY)
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
-# NOVO: Garante que a pasta 'uploads' existe e permite que o navegador mostre os arquivos
-os.makedirs(UPLOADS_DIR, exist_ok=True)
-app.mount("/uploads", StaticFiles(directory=str(UPLOADS_DIR)), name="uploads")
+# Rota segura para visualização/download de atestados (com suporte a Redirecionamento S3/MinIO ou Local)
+@app.get("/uploads/{nome_arquivo:path}")
+async def visualizar_atestado(request: Request, nome_arquivo: str):
+    usuario = obter_usuario_atual(request)
+    if not usuario:
+        return RedirectResponse(url="/login", status_code=303)
+        
+    url = obter_url_arquivo(nome_arquivo)
+    if url.startswith("http://") or url.startswith("https://"):
+        return RedirectResponse(url=url, status_code=307)
+        
+    caminho = UPLOADS_DIR / nome_arquivo
+    if caminho.exists():
+        return FileResponse(str(caminho))
+    return Response("Arquivo não encontrado", status_code=404)
 
 def pegar_conexao():
     conexao = sqlite3.connect(str(DB_PATH))
@@ -302,13 +315,11 @@ async def anexar_atestado(request: Request, aluno_id: int, data_chamada: str, ar
     if not usuario:
         return RedirectResponse(url="/login", status_code=303)
         
-    # Limpa o nome do arquivo e salva na pasta uploads
+    # Limpa o nome do arquivo e salva no armazenamento configurado (Local ou S3/MinIO)
     nome_limpo = os.path.basename(arquivo.filename).replace(' ', '_')
     nome_seguro = f"atestado_{aluno_id}_{data_chamada}_{nome_limpo}"
-    caminho_salvar = UPLOADS_DIR / nome_seguro
     
-    with open(caminho_salvar, "wb") as buffer:
-        shutil.copyfileobj(arquivo.file, buffer)
+    salvar_arquivo(arquivo.file, nome_seguro, content_type=arquivo.content_type or "application/octet-stream")
         
     conexao = pegar_conexao()
     existe = conexao.execute('SELECT id FROM presencas WHERE aluno_id = ? AND data = ?', (aluno_id, data_chamada)).fetchone()
@@ -601,16 +612,11 @@ async def excluir_aluno(request: Request, aluno_id: int):
     aluno_info = conexao.execute('SELECT nome FROM alunos WHERE id = ?', (aluno_id,)).fetchone()
     nome_aluno = aluno_info['nome'] if aluno_info else f"ID {aluno_id}"
 
-    # 1. Apaga os arquivos de atestados anexados ao aluno (se existirem)
+    # 1. Apaga os arquivos de atestados anexados ao aluno (se existirem, seja Local ou S3/MinIO)
     atestados = conexao.execute('SELECT atestado FROM presencas WHERE aluno_id = ? AND atestado IS NOT NULL', (aluno_id,)).fetchall()
     for row in atestados:
         if row['atestado']:
-            arquivo_path = UPLOADS_DIR / row['atestado']
-            if arquivo_path.exists():
-                try:
-                    os.remove(arquivo_path)
-                except Exception:
-                    pass
+            remover_arquivo(row['atestado'])
                     
     # 2. Remove as presenças associadas
     conexao.execute('DELETE FROM presencas WHERE aluno_id = ?', (aluno_id,))
