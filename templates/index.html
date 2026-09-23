@@ -7,11 +7,20 @@
 
     <h2 class="text-primary fw-bold mb-4">Controlo de Presenças</h2>
 
-    <!-- Seletor de Data com o novo Calendário -->
-    <form method="GET" action="/" class="d-flex mb-4">
-        <div class="input-group shadow-sm" style="max-width: 300px;">
+    <!-- Seletor de Data e Filtro por Turma -->
+    <form method="GET" action="/" class="d-flex flex-wrap gap-3 mb-4 align-items-center">
+        <div class="input-group shadow-sm" style="max-width: 280px;">
             <span class="input-group-text bg-primary text-white border-primary fw-bold">Data:</span>
             <input type="text" id="calendario-br" name="data_chamada" class="form-control border-primary bg-white" value="{{ data_atual }}" placeholder="Selecione a data">
+        </div>
+        <div class="input-group shadow-sm" style="max-width: 250px;">
+            <span class="input-group-text bg-primary text-white border-primary fw-bold">Turma:</span>
+            <select name="turma" class="form-select border-primary bg-white" onchange="this.form.submit()">
+                <option value="">Todas as Turmas</option>
+                {% for t in turmas_disponiveis %}
+                    <option value="{{ t }}" {% if turma_selecionada == t %}selected{% endif %}>{{ t }}</option>
+                {% endfor %}
+            </select>
         </div>
     </form>
 
@@ -28,6 +37,11 @@
                     <!-- ÚNICA etiqueta de turma -->
                     <span class="badge-institucional me-2">Turma: {{ aluno['turma'] }}</span>
                     
+                    <!-- Link Rápido para Histórico Individual -->
+                    <a href="/alunos/{{ aluno['id'] }}/historico" class="badge bg-light text-primary border border-primary text-decoration-none py-1 px-2 me-2">
+                        📊 Histórico
+                    </a>
+                    
                     <!-- Alerta de 3 Faltas -->
                     {% if aluno['total_faltas'] >= 3 %}
                         <span class="badge bg-danger shadow-sm" style="border-radius: 0.4rem; padding: 0.35rem 0.6rem; font-size: 0.75rem; text-transform: uppercase;">
@@ -38,15 +52,15 @@
                 
                 <!-- LADO DIREITO: Botões de Chamada e Atestado -->
                 <div class="d-flex flex-wrap justify-content-center justify-content-lg-end align-items-center gap-2 w-100">
-                    <a href="/registrar/{{ aluno['id'] }}/{{ data_atual }}/Presente" 
+                    <a href="/registrar/{{ aluno['id'] }}/{{ data_atual }}/Presente?turma={{ turma_selecionada or '' }}" 
                        class="btn {% if aluno['status'] == 'Presente' %}btn-success{% else %}btn-outline-success{% endif %} rounded-pill px-3 fw-semibold">
                        Presente
                     </a>
-                    <a href="/registrar/{{ aluno['id'] }}/{{ data_atual }}/Falta" 
+                    <a href="/registrar/{{ aluno['id'] }}/{{ data_atual }}/Falta?turma={{ turma_selecionada or '' }}" 
                        class="btn {% if aluno['status'] == 'Falta' %}btn-danger{% else %}btn-outline-danger{% endif %} rounded-pill px-3 fw-semibold">
                        Falta
                     </a>
-                    <a href="/registrar/{{ aluno['id'] }}/{{ data_atual }}/Falta justificada" 
+                    <a href="/registrar/{{ aluno['id'] }}/{{ data_atual }}/Falta justificada?turma={{ turma_selecionada or '' }}" 
                        class="btn {% if aluno['status'] == 'Falta justificada' %}btn-warning{% else %}btn-outline-warning{% endif %} rounded-pill px-3 fw-semibold">
                        Justificada
                     </a>
@@ -80,7 +94,7 @@
                     </div>
                     <div class="modal-body p-4">
                         <!-- O enctype="multipart/form-data" é obrigatório para enviar arquivos no HTML -->
-                        <form action="/anexar_atestado/{{ aluno['id'] }}/{{ data_atual }}" method="POST" enctype="multipart/form-data">
+                        <form action="/anexar_atestado/{{ aluno['id'] }}/{{ data_atual }}?turma={{ turma_selecionada or '' }}" method="POST" enctype="multipart/form-data">
                             <div class="mb-4">
                                 <label class="form-label fw-bold">Selecione o documento (Imagem ou PDF)</label>
                                 <input type="file" name="arquivo" class="form-control rounded-pill border-secondary" required accept=".pdf, image/*">

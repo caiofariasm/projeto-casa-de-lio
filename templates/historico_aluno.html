@@ -1,0 +1,125 @@
+{% extends 'base.html' %}
+{% block conteudo %}
+<div class="row mb-4 align-items-center">
+    <div class="col-md-8">
+        <div class="d-flex align-items-center gap-3">
+            <h2 class="text-primary fw-bold mb-0">{{ aluno['nome'] }}</h2>
+            <span class="badge-institucional">Turma: {{ aluno['turma'] }}</span>
+        </div>
+        <p class="text-muted mt-1 mb-0">
+            Telefone: <strong>{{ aluno['telefone'] }}</strong> 
+            {% if aluno['contato_emergencia'] %}
+            | Emergência: <strong>{{ aluno['contato_emergencia'] }} ({{ aluno['telefone_emergencia'] }})</strong>
+            {% endif %}
+        </p>
+    </div>
+    <div class="col-md-4 text-md-end mt-3 mt-md-0">
+        <a href="/alunos" class="btn btn-outline-secondary rounded-pill px-4 fw-semibold me-2">
+            ⬅️ Voltar
+        </a>
+        <a href="/ficha/{{ aluno['id'] }}" target="_blank" class="btn btn-outline-primary rounded-pill px-3 fw-semibold">
+            🖨️ Ficha
+        </a>
+    </div>
+</div>
+
+{% if metricas['faltas'] >= 3 %}
+<div class="alert alert-danger shadow-sm border-0 d-flex align-items-center gap-3 p-3 mb-4" style="border-radius: 1rem;">
+    <div class="fs-2">⚠️</div>
+    <div>
+        <h5 class="fw-bold mb-1">Atenção: Vaga em Risco</h5>
+        <p class="mb-0">Este aluno acumulou <strong>{{ metricas['faltas'] }} faltas não justificadas</strong>. A coordenação deve entrar em contato com os responsáveis.</p>
+    </div>
+</div>
+{% endif %}
+
+<!-- Cartões de Métricas Individuais -->
+<div class="row mb-4">
+    <div class="col-md-3 col-6 mb-3">
+        <div class="card shadow-sm border-0 border-start border-primary border-4 h-100">
+            <div class="card-body">
+                <h6 class="text-muted mb-1 text-uppercase fw-bold" style="font-size: 0.8rem;">Aulas Registradas</h6>
+                <h3 class="fw-bold mb-0 text-primary">{{ metricas['total_aulas'] }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-6 mb-3">
+        <div class="card shadow-sm border-0 border-start border-success border-4 h-100">
+            <div class="card-body">
+                <h6 class="text-muted mb-1 text-uppercase fw-bold" style="font-size: 0.8rem;">Assiduidade</h6>
+                <h3 class="fw-bold mb-0 text-success">{{ metricas['taxa_assiduidade'] }}%</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-6 mb-3">
+        <div class="card shadow-sm border-0 border-start border-danger border-4 h-100">
+            <div class="card-body">
+                <h6 class="text-muted mb-1 text-uppercase fw-bold" style="font-size: 0.8rem;">Faltas</h6>
+                <h3 class="fw-bold mb-0 text-danger">{{ metricas['faltas'] }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-6 mb-3">
+        <div class="card shadow-sm border-0 border-start border-warning border-4 h-100">
+            <div class="card-body">
+                <h6 class="text-muted mb-1 text-uppercase fw-bold" style="font-size: 0.8rem;">Justificadas</h6>
+                <h3 class="fw-bold mb-0 text-warning">{{ metricas['justificadas'] }}</h3>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tabela de Presenças Detalhada -->
+<div class="card shadow-sm border-0" style="border-radius: 1rem;">
+    <div class="card-header bg-white border-0 pt-4 pb-2 px-4 d-flex justify-content-between align-items-center">
+        <h5 class="fw-bold text-primary mb-0">Linha do Tempo de Chamadas</h5>
+        <span class="text-muted" style="font-size: 0.9rem;">Ordenado pelas datas mais recentes</span>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th class="ps-4 py-3">Data</th>
+                        <th class="py-3">Status</th>
+                        <th class="py-3 text-center">Documento Anexado</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for reg in historico %}
+                    <tr>
+                        <td class="ps-4 fw-semibold">{{ reg['data_formatada'] }}</td>
+                        <td>
+                            {% if reg['status'] == 'Presente' %}
+                                <span class="badge bg-success rounded-pill px-3 py-2 fw-semibold">Presente</span>
+                            {% elif reg['status'] == 'Falta' %}
+                                <span class="badge bg-danger rounded-pill px-3 py-2 fw-semibold">Falta</span>
+                            {% elif reg['status'] == 'Falta justificada' %}
+                                <span class="badge bg-warning rounded-pill px-3 py-2 fw-semibold text-white">Falta Justificada</span>
+                            {% else %}
+                                <span class="badge bg-secondary rounded-pill px-3 py-2">{{ reg['status'] }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            {% if reg['atestado'] %}
+                                <a href="/uploads/{{ reg['atestado'] }}" target="_blank" class="btn btn-sm btn-outline-info rounded-pill px-3 fw-semibold">
+                                    📄 Ver Atestado
+                                </a>
+                            {% else %}
+                                <span class="text-muted" style="font-size: 0.85rem;">—</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="3" class="text-center text-muted py-5">
+                            Nenhum registro de chamada encontrado para este aluno.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

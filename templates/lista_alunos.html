@@ -33,10 +33,46 @@
                         <td><span class="badge bg-secondary">{{ aluno['turma'] }}</span></td>
                         <td>{{ aluno['telefone'] }}</td>
                         <td class="pe-4 text-center">
-                            <!-- Botão que leva direto para a folha A4 de impressão -->
-                            <a href="/ficha/{{ aluno['id'] }}" target="_blank" class="btn btn-sm btn-outline-primary rounded-pill fw-bold px-3">
-                                🖨️ Imprimir Ficha
-                            </a>
+                            <div class="d-flex justify-content-center flex-wrap gap-2">
+                                <a href="/ficha/{{ aluno['id'] }}" target="_blank" class="btn btn-sm btn-outline-primary rounded-pill fw-semibold px-2" title="Imprimir Ficha A4">
+                                    🖨️ Ficha
+                                </a>
+                                <a href="/alunos/{{ aluno['id'] }}/historico" class="btn btn-sm btn-outline-success rounded-pill fw-semibold px-2" title="Ver Histórico de Presença">
+                                    📊 Histórico
+                                </a>
+                                <a href="/alunos/editar/{{ aluno['id'] }}" class="btn btn-sm btn-outline-warning rounded-pill fw-semibold px-2" title="Editar Dados Cadastrais">
+                                    ✏️ Editar
+                                </a>
+                                <button type="button" class="btn btn-sm btn-outline-danger rounded-pill fw-semibold px-2" data-bs-toggle="modal" data-bs-target="#modalExcluir{{ aluno['id'] }}" title="Excluir Aluno">
+                                    🗑️ Excluir
+                                </button>
+                            </div>
+
+                            <!-- Modal de Confirmação de Exclusão -->
+                            <div class="modal fade" id="modalExcluir{{ aluno['id'] }}" tabindex="-1" aria-hidden="true">
+                                <div class="modal-dialog modal-dialog-centered">
+                                    <div class="modal-content shadow border-0 text-start" style="border-radius: 1.2rem;">
+                                        <div class="modal-header bg-danger text-white" style="border-top-left-radius: 1.2rem; border-top-right-radius: 1.2rem;">
+                                            <h5 class="modal-title fw-bold">Confirmar Exclusão</h5>
+                                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                                        </div>
+                                        <div class="modal-body p-4">
+                                            <p class="mb-2">Tem certeza que deseja excluir o aluno <strong>{{ aluno['nome'] }}</strong>?</p>
+                                            <div class="alert alert-warning mb-0 p-2" style="font-size: 0.85rem;">
+                                                ⚠️ Esta ação removerá permanentemente o cadastro e todas as presenças e atestados deste aluno.
+                                            </div>
+                                        </div>
+                                        <div class="modal-footer border-0 p-3 pt-0">
+                                            <button type="button" class="btn btn-light rounded-pill px-3 fw-semibold" data-bs-dismiss="modal">Cancelar</button>
+                                            <form action="/alunos/excluir/{{ aluno['id'] }}" method="POST" class="d-inline">
+                                                <button type="submit" class="btn btn-danger rounded-pill px-4 fw-bold">
+                                                    Sim, Excluir
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </td>
                     </tr>
                     {% else %}

@@ -1,0 +1,186 @@
+{% extends 'base.html' %}
+{% block conteudo %}
+<!-- Ferramentas do Calendário (Flatpickr) -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://npmcdn.com/flatpickr/dist/l10n/pt.js"></script>
+
+<div class="row justify-content-center mb-5">
+    <div class="col-md-10">
+        <div class="card shadow-lg border-0" style="border-radius: 1.5rem;">
+            <div class="card-header bg-primary text-white pt-4 pb-3" style="border-top-left-radius: 1.5rem; border-top-right-radius: 1.5rem;">
+                <h3 class="text-center fw-bold mb-0">Editar Ficha do Aluno</h3>
+                <p class="text-center text-white-50 mb-0">Atualização cadastral de {{ aluno['nome'] }}</p>
+            </div>
+            
+            <div class="card-body p-4 p-md-5">
+                <form action="/alunos/editar/{{ aluno['id'] }}" method="POST">
+                    
+                    <!-- BLOCO 1: DADOS PESSOAIS -->
+                    <h5 class="text-primary fw-bold mb-3 border-bottom pb-2">1. Dados Pessoais</h5>
+                    <div class="row mb-3">
+                        <div class="col-md-8 mb-3 mb-md-0">
+                            <label class="form-label fw-semibold text-muted">Nome Completo</label>
+                            <input type="text" name="nome" value="{{ aluno['nome'] }}" class="form-control bg-light border-0" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold text-muted">Nascimento</label>
+                            <input type="text" id="data_nascimento" name="data_nascimento" value="{{ aluno['data_nascimento'] or '' }}" class="form-control bg-light border-0 bg-white" placeholder="Selecione a data" required>
+                        </div>
+                    </div>
+                    <div class="row mb-4">
+                        <div class="col-md-6 mb-3 mb-md-0">
+                            <label class="form-label fw-semibold text-muted">Turma Alocada</label>
+                            <select name="turma" class="form-select bg-light border-0" required>
+                                <option value="Manhã" {% if aluno['turma'] == 'Manhã' %}selected{% endif %}>Manhã</option>
+                                <option value="Tarde" {% if aluno['turma'] == 'Tarde' %}selected{% endif %}>Tarde</option>
+                                <option value="Noite" {% if aluno['turma'] == 'Noite' %}selected{% endif %}>Noite</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold text-muted">Telefone Pessoal</label>
+                            <input type="text" name="telefone" value="{{ aluno['telefone'] or '' }}" class="form-control bg-light border-0" required>
+                        </div>
+                    </div>
+
+                    <!-- BLOCO 2: ENDEREÇO (Com ViaCEP) -->
+                    <h5 class="text-primary fw-bold mb-3 border-bottom pb-2 mt-5">2. Endereço</h5>
+                    <div class="row mb-3">
+                        <div class="col-md-4 mb-3 mb-md-0">
+                            <label class="form-label fw-semibold text-muted">CEP</label>
+                            <input type="text" id="cep" name="cep" value="{{ aluno['cep'] or '' }}" class="form-control bg-light border-0" placeholder="Apenas números">
+                        </div>
+                        <div class="col-md-8">
+                            <label class="form-label fw-semibold text-muted">Rua / Avenida</label>
+                            <input type="text" id="rua" name="rua" value="{{ aluno['rua'] or '' }}" class="form-control bg-light border-0" required>
+                        </div>
+                    </div>
+                    <div class="row mb-4">
+                        <div class="col-md-3 mb-3 mb-md-0">
+                            <label class="form-label fw-semibold text-muted">Número</label>
+                            <input type="text" name="numero" value="{{ aluno['numero'] or '' }}" class="form-control bg-light border-0" required>
+                        </div>
+                        <div class="col-md-4 mb-3 mb-md-0">
+                            <label class="form-label fw-semibold text-muted">Bairro</label>
+                            <input type="text" id="bairro" name="bairro" value="{{ aluno['bairro'] or '' }}" class="form-control bg-light border-0" required>
+                        </div>
+                        <div class="col-md-5">
+                            <label class="form-label fw-semibold text-muted">Cidade/UF</label>
+                            <input type="text" id="cidade" name="cidade" value="{{ aluno['cidade'] or '' }}" class="form-control bg-light border-0" required>
+                        </div>
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label fw-semibold text-muted">Ponto de Referência</label>
+                        <input type="text" name="referencia" value="{{ aluno['referencia'] or '' }}" class="form-control bg-light border-0">
+                    </div>
+
+                    <!-- BLOCO 3: SAÚDE E SEGURANÇA -->
+                    <h5 class="text-primary fw-bold mb-3 border-bottom pb-2 mt-5">3. Segurança e Saúde</h5>
+                    <div class="row mb-3">
+                        <div class="col-md-6 mb-3 mb-md-0">
+                            <label class="form-label fw-semibold text-muted">Contato de Emergência (Nome e Parentesco)</label>
+                            <input type="text" name="contato_emergencia" value="{{ aluno['contato_emergencia'] or '' }}" class="form-control bg-light border-0" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold text-muted">Telefone de Emergência</label>
+                            <input type="text" name="telefone_emergencia" value="{{ aluno['telefone_emergencia'] or '' }}" class="form-control bg-light border-0" required>
+                        </div>
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label fw-semibold text-muted">Condições Médicas, Alergias ou Medicamentos (Opcional)</label>
+                        <textarea name="condicao_medica" class="form-control bg-light border-0" rows="2" placeholder="Ex: Hipertensão, alergia a dipirona...">{{ aluno['condicao_medica'] or '' }}</textarea>
+                    </div>
+
+                    <!-- BLOCO 4: MENORES DE IDADE -->
+                    <div id="bloco_responsavel" style="display: none;" class="p-4 bg-light rounded-3 mb-4 border-start border-warning border-4 mt-4">
+                        <h5 class="text-warning fw-bold mb-3">⚠️ Obrigatório para Menores de Idade</h5>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold text-muted">Nome Completo do Responsável Legal</label>
+                            <input type="text" id="nome_responsavel" name="nome_responsavel" value="{{ aluno['nome_responsavel'] or '' }}" class="form-control border-0">
+                        </div>
+                        <div class="form-check mt-3">
+                            <input class="form-check-input" type="checkbox" id="autorizacao" name="autorizacao" {% if aluno['autorizacao_pais'] %}checked{% endif %}>
+                            <label class="form-check-label fw-semibold text-muted" for="autorizacao">
+                                Confirmo que possuo a autorização assinada pelos pais/responsáveis.
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="d-flex gap-3 mt-5">
+                        <button type="submit" class="btn btn-warning btn-lg rounded-pill fw-bold text-white shadow-sm flex-grow-1">
+                            Salvar Alterações
+                        </button>
+                        <a href="/alunos" class="btn btn-light btn-lg rounded-pill fw-bold text-muted px-4">
+                            Cancelar
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function verificarIdade(dataNasc) {
+        if (!dataNasc) return;
+        const hoje = new Date();
+        let idade = hoje.getFullYear() - dataNasc.getFullYear();
+        const mes = hoje.getMonth() - dataNasc.getMonth();
+        if (mes < 0 || (mes === 0 && hoje.getDate() < dataNasc.getDate())) { idade--; }
+        
+        const blocoResponsavel = document.getElementById('bloco_responsavel');
+        const inputResponsavel = document.getElementById('nome_responsavel');
+        const inputAutorizacao = document.getElementById('autorizacao');
+        
+        if (idade < 18) {
+            blocoResponsavel.style.display = 'block';
+            inputResponsavel.required = true;
+            inputAutorizacao.required = true;
+        } else {
+            blocoResponsavel.style.display = 'none';
+            inputResponsavel.required = false;
+            inputAutorizacao.required = false;
+        }
+    }
+
+    // 1. Calendário Flatpickr em Português
+    const fp = flatpickr("#data_nascimento", {
+        locale: "pt",
+        dateFormat: "Y-m-d",
+        altInput: true,
+        altFormat: "d/m/Y",
+        defaultDate: "{{ aluno['data_nascimento'] or '' }}",
+        onChange: function(selectedDates, dateStr, instance) {
+            if (selectedDates.length > 0) {
+                verificarIdade(selectedDates[0]);
+            }
+        },
+        onReady: function(selectedDates, dateStr, instance) {
+            if (selectedDates.length > 0) {
+                verificarIdade(selectedDates[0]);
+            }
+        }
+    });
+
+    // 2. Autopreenchimento de Endereço via API do ViaCEP
+    document.getElementById('cep').addEventListener('blur', function() {
+        let cep = this.value.replace(/\D/g, '');
+        if (cep.length === 8) {
+            document.getElementById('rua').value = "Buscando...";
+            fetch(`https://viacep.com.br/ws/${cep}/json/`)
+                .then(response => response.json())
+                .then(data => {
+                    if (!data.erro) {
+                        document.getElementById('rua').value = data.logradouro;
+                        document.getElementById('bairro').value = data.bairro;
+                        document.getElementById('cidade').value = data.localidade + '/' + data.uf;
+                    } else {
+                        alert("CEP não encontrado.");
+                        document.getElementById('rua').value = "";
+                    }
+                })
+                .catch(error => console.error('Erro:', error));
+        }
+    });
+</script>
+{% endblock %}

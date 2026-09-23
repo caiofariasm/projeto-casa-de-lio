@@ -7,17 +7,22 @@ import sqlite3
 from datetime import date, datetime
 import os
 import shutil
+from pathlib import Path
+
+BASE_DIR = Path(__file__).resolve().parent
+DB_PATH = BASE_DIR / "banco.db"
+UPLOADS_DIR = BASE_DIR / "uploads"
 
 app = FastAPI()
 app.add_middleware(SessionMiddleware, secret_key="chave_secreta_casa_de_lio")
-templates = Jinja2Templates(directory="templates")
+templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
 # NOVO: Garante que a pasta 'uploads' existe e permite que o navegador mostre os arquivos
-os.makedirs("uploads", exist_ok=True)
-app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+os.makedirs(UPLOADS_DIR, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=str(UPLOADS_DIR)), name="uploads")
 
 def pegar_conexao():
-    conexao = sqlite3.connect('banco.db')
+    conexao = sqlite3.connect(str(DB_PATH))
     conexao.row_factory = sqlite3.Row
     return conexao
 
@@ -126,37 +131,52 @@ async def sair(request: Request):
 
 # --- ROTAS PROTEGIDAS ---
 @app.get("/", response_class=HTMLResponse)
-async def home(request: Request, data_chamada: str = None):
+async def home(request: Request, data_chamada: str = None, turma: str = None):
     if not request.session.get('perfil'):
         return RedirectResponse(url="/login", status_code=303)
         
     data_atual = data_chamada if data_chamada else date.today().isoformat()
         
     conexao = pegar_conexao()
-    # ATUALIZAÇÃO: Agora o SQL também puxa a coluna 'atestado'
-    alunos = conexao.execute('''
+    turmas_db = conexao.execute('SELECT DISTINCT turma FROM alunos WHERE turma IS NOT NULL AND turma != "" ORDER BY turma ASC').fetchall()
+    turmas_disponiveis = [t['turma'] for t in turmas_db]
+
+    query = '''
         SELECT a.id, a.nome, a.turma, p.status, p.atestado,
                (SELECT COUNT(*) FROM presencas WHERE aluno_id = a.id AND status = 'Falta') as total_faltas
         FROM alunos a
         LEFT JOIN presencas p ON a.id = p.aluno_id AND p.data = ?
-    ''', (data_atual,)).fetchall()
+    '''
+    parametros = [data_atual]
+    if turma and turma in turmas_disponiveis:
+        query += ' WHERE a.turma = ?'
+        parametros.append(turma)
+        
+    query += ' ORDER BY a.nome ASC'
+    alunos = conexao.execute(query, parametros).fetchall()
     conexao.close()
     
     return templates.TemplateResponse(
         request=request, 
         name="index.html", 
-        context={"alunos": alunos, "data_atual": data_atual}
+        context={
+            "alunos": alunos, 
+            "data_atual": data_atual,
+            "turmas_disponiveis": turmas_disponiveis,
+            "turma_selecionada": turma or ""
+        }
     )
 
 # NOVO: Rota que recebe o arquivo PDF/Imagem e justifica a falta automaticamente
 @app.post("/anexar_atestado/{aluno_id}/{data_chamada}")
-async def anexar_atestado(request: Request, aluno_id: int, data_chamada: str, arquivo: UploadFile = File(...)):
+async def anexar_atestado(request: Request, aluno_id: int, data_chamada: str, arquivo: UploadFile = File(...), turma: str = None):
     if not request.session.get('perfil'):
         return RedirectResponse(url="/login", status_code=303)
         
     # Limpa o nome do arquivo e salva na pasta uploads
-    nome_seguro = f"atestado_{aluno_id}_{data_chamada}_{arquivo.filename.replace(' ', '_')}"
-    caminho_salvar = f"uploads/{nome_seguro}"
+    nome_limpo = os.path.basename(arquivo.filename).replace(' ', '_')
+    nome_seguro = f"atestado_{aluno_id}_{data_chamada}_{nome_limpo}"
+    caminho_salvar = UPLOADS_DIR / nome_seguro
     
     with open(caminho_salvar, "wb") as buffer:
         shutil.copyfileobj(arquivo.file, buffer)
@@ -173,11 +193,14 @@ async def anexar_atestado(request: Request, aluno_id: int, data_chamada: str, ar
     conexao.commit()
     conexao.close()
     
-    # Devolve a tela atualizada
-    return RedirectResponse(url=f"/?data_chamada={data_chamada}", status_code=303)
+    # Devolve a tela atualizada preservando a data e a turma
+    url = f"/?data_chamada={data_chamada}"
+    if turma:
+        url += f"&turma={turma}"
+    return RedirectResponse(url=url, status_code=303)
 
 @app.get("/registrar/{aluno_id}/{data_chamada}/{status}")
-async def registrar(request: Request, aluno_id: int, data_chamada: str, status: str):
+async def registrar(request: Request, aluno_id: int, data_chamada: str, status: str, turma: str = None):
     if not request.session.get('perfil'):
         return RedirectResponse(url="/login", status_code=303)
         
@@ -195,8 +218,11 @@ async def registrar(request: Request, aluno_id: int, data_chamada: str, status: 
     conexao.commit()
     conexao.close()
     
-    # Devolve a professora para a MESMA data que estava a editar
-    return RedirectResponse(url=f"/?data_chamada={data_chamada}", status_code=303)
+    # Devolve a professora para a MESMA data e turma que estava a editar
+    url = f"/?data_chamada={data_chamada}"
+    if turma:
+        url += f"&turma={turma}"
+    return RedirectResponse(url=url, status_code=303)
 
 @app.get("/exportar")
 async def exportar(request: Request, mes: str = None, turma: str = None):
@@ -247,60 +273,6 @@ async def tela_cadastrar(request: Request):
     return templates.TemplateResponse(request=request, name="cadastro.html")
 
 # NOVO: A rota invisível que recebe os dados do formulário e salva no banco
-@app.post("/cadastrar")
-async def salvar_cadastro(request: Request):
-    if request.session.get('perfil') != 'coordenacao':
-        return RedirectResponse(url="/", status_code=303)
-        
-    formulario = await request.form()
-    
-    nome = formulario.get('nome')
-    data_nascimento = formulario.get('data_nascimento')
-    turma = formulario.get('turma')
-    telefone = formulario.get('telefone')
-    cep = formulario.get('cep', '')
-    rua = formulario.get('rua', '')
-    numero = formulario.get('numero', '')
-    bairro = formulario.get('bairro', '')
-    cidade = formulario.get('cidade', '')
-    referencia = formulario.get('referencia', '')
-    contato_emergencia = formulario.get('contato_emergencia', '')
-    telefone_emergencia = formulario.get('telefone_emergencia', '')
-    condicao_medica = formulario.get('condicao_medica', '')
-    nome_responsavel = formulario.get('nome_responsavel', '')
-    autorizacao = 1 if formulario.get('autorizacao') == 'on' else 0
-    
-    conexao = pegar_conexao()
-    cursor = conexao.cursor()
-    cursor.execute('''
-        INSERT INTO alunos (
-            nome, data_nascimento, turma, telefone, 
-            cep, rua, numero, bairro, cidade, referencia,
-            contato_emergencia, telefone_emergencia, condicao_medica,
-            nome_responsavel, autorizacao_pais
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ''', (nome, data_nascimento, turma, telefone, cep, rua, numero, bairro, cidade, referencia, 
-          contato_emergencia, telefone_emergencia, condicao_medica, nome_responsavel, autorizacao))
-    
-    aluno_id = cursor.lastrowid # Capta o ID exato do aluno que acabou de ser gravado
-    conexao.commit()
-    conexao.close()
-    
-    # NOVO: Em vez do Dashboard, atira para a ficha de impressão
-    return RedirectResponse(url=f"/ficha/{aluno_id}", status_code=303)
-
-# NOVO: Rota exclusiva para gerar a ficha em tamanho A4
-@app.get("/ficha/{aluno_id}", response_class=HTMLResponse)
-async def gerar_ficha(request: Request, aluno_id: int):
-    if request.session.get('perfil') != 'coordenacao':
-        return RedirectResponse(url="/", status_code=303)
-        
-    conexao = pegar_conexao()
-    aluno = conexao.execute('SELECT * FROM alunos WHERE id = ?', (aluno_id,)).fetchone()
-    conexao.close()
-    
-    return templates.TemplateResponse(request=request, name="ficha.html", context={"aluno": aluno})
-
 @app.post("/cadastrar")
 async def salvar_cadastro(request: Request):
     if request.session.get('perfil') != 'coordenacao':
@@ -409,31 +381,129 @@ async def listar_alunos(request: Request):
         name="lista_alunos.html", 
         context={"alunos": alunos_db}
     )
-    
-    # NOVO: Rota que recebe o arquivo PDF/Imagem e justifica a falta automaticamente
-@app.post("/anexar_atestado/{aluno_id}/{data_chamada}")
-async def anexar_atestado(request: Request, aluno_id: int, data_chamada: str, arquivo: UploadFile = File(...)):
-    if not request.session.get('perfil'):
-        return RedirectResponse(url="/login", status_code=303)
-        
-    # Limpa o nome do arquivo e salva na pasta uploads
-    nome_seguro = f"atestado_{aluno_id}_{data_chamada}_{arquivo.filename.replace(' ', '_')}"
-    caminho_salvar = f"uploads/{nome_seguro}"
-    
-    with open(caminho_salvar, "wb") as buffer:
-        shutil.copyfileobj(arquivo.file, buffer)
+
+# --- ROTAS DE GESTÃO DE ALUNOS (EDIÇÃO, EXCLUSÃO E HISTÓRICO) ---
+@app.get("/alunos/editar/{aluno_id}", response_class=HTMLResponse)
+async def tela_editar_aluno(request: Request, aluno_id: int):
+    if request.session.get('perfil') != 'coordenacao':
+        return RedirectResponse(url="/", status_code=303)
         
     conexao = pegar_conexao()
-    existe = conexao.execute('SELECT id FROM presencas WHERE aluno_id = ? AND data = ?', (aluno_id, data_chamada)).fetchone()
+    aluno = conexao.execute('SELECT * FROM alunos WHERE id = ?', (aluno_id,)).fetchone()
+    conexao.close()
     
-    # Automatiza a Justificativa marcando 'Falta justificada' e anexando o arquivo
-    if existe:
-        conexao.execute('UPDATE presencas SET status = ?, atestado = ? WHERE id = ?', ('Falta justificada', nome_seguro, existe['id']))
-    else:
-        conexao.execute('INSERT INTO presencas (aluno_id, data, status, atestado) VALUES (?, ?, ?, ?)', (aluno_id, data_chamada, 'Falta justificada', nome_seguro))
+    if not aluno:
+        return RedirectResponse(url="/alunos", status_code=303)
         
+    return templates.TemplateResponse(request=request, name="editar_aluno.html", context={"aluno": aluno})
+
+@app.post("/alunos/editar/{aluno_id}")
+async def salvar_edicao_aluno(request: Request, aluno_id: int):
+    if request.session.get('perfil') != 'coordenacao':
+        return RedirectResponse(url="/", status_code=303)
+        
+    formulario = await request.form()
+    nome = formulario.get('nome')
+    data_nascimento = formulario.get('data_nascimento')
+    turma = formulario.get('turma')
+    telefone = formulario.get('telefone')
+    cep = formulario.get('cep', '')
+    rua = formulario.get('rua', '')
+    numero = formulario.get('numero', '')
+    bairro = formulario.get('bairro', '')
+    cidade = formulario.get('cidade', '')
+    referencia = formulario.get('referencia', '')
+    contato_emergencia = formulario.get('contato_emergencia', '')
+    telefone_emergencia = formulario.get('telefone_emergencia', '')
+    condicao_medica = formulario.get('condicao_medica', '')
+    nome_responsavel = formulario.get('nome_responsavel', '')
+    autorizacao = 1 if formulario.get('autorizacao') == 'on' else 0
+    
+    conexao = pegar_conexao()
+    conexao.execute('''
+        UPDATE alunos SET
+            nome = ?, data_nascimento = ?, turma = ?, telefone = ?,
+            cep = ?, rua = ?, numero = ?, bairro = ?, cidade = ?, referencia = ?,
+            contato_emergencia = ?, telefone_emergencia = ?, condicao_medica = ?,
+            nome_responsavel = ?, autorizacao_pais = ?
+        WHERE id = ?
+    ''', (nome, data_nascimento, turma, telefone, cep, rua, numero, bairro, cidade, referencia,
+          contato_emergencia, telefone_emergencia, condicao_medica, nome_responsavel, autorizacao, aluno_id))
     conexao.commit()
     conexao.close()
     
-    # Devolve a tela atualizada preservando a data escolhida
-    return RedirectResponse(url=f"/?data_chamada={data_chamada}", status_code=303)
+    return RedirectResponse(url="/alunos", status_code=303)
+
+@app.post("/alunos/excluir/{aluno_id}")
+async def excluir_aluno(request: Request, aluno_id: int):
+    if request.session.get('perfil') != 'coordenacao':
+        return RedirectResponse(url="/", status_code=303)
+        
+    conexao = pegar_conexao()
+    # 1. Apaga os arquivos de atestados anexados ao aluno (se existirem)
+    atestados = conexao.execute('SELECT atestado FROM presencas WHERE aluno_id = ? AND atestado IS NOT NULL', (aluno_id,)).fetchall()
+    for row in atestados:
+        if row['atestado']:
+            arquivo_path = UPLOADS_DIR / row['atestado']
+            if arquivo_path.exists():
+                try:
+                    os.remove(arquivo_path)
+                except Exception:
+                    pass
+                    
+    # 2. Remove as presenças associadas
+    conexao.execute('DELETE FROM presencas WHERE aluno_id = ?', (aluno_id,))
+    # 3. Remove o registro do aluno
+    conexao.execute('DELETE FROM alunos WHERE id = ?', (aluno_id,))
+    conexao.commit()
+    conexao.close()
+    
+    return RedirectResponse(url="/alunos", status_code=303)
+
+@app.get("/alunos/{aluno_id}/historico", response_class=HTMLResponse)
+async def historico_aluno(request: Request, aluno_id: int):
+    if not request.session.get('perfil'):
+        return RedirectResponse(url="/login", status_code=303)
+        
+    conexao = pegar_conexao()
+    aluno = conexao.execute('SELECT * FROM alunos WHERE id = ?', (aluno_id,)).fetchone()
+    if not aluno:
+        conexao.close()
+        return RedirectResponse(url="/", status_code=303)
+        
+    registros_db = conexao.execute('''
+        SELECT id, data, status, atestado
+        FROM presencas
+        WHERE aluno_id = ?
+        ORDER BY data DESC
+    ''', (aluno_id,)).fetchall()
+    conexao.close()
+    
+    total_aulas = len(registros_db)
+    presentes = sum(1 for r in registros_db if r['status'] == 'Presente')
+    faltas = sum(1 for r in registros_db if r['status'] == 'Falta')
+    justificadas = sum(1 for r in registros_db if r['status'] == 'Falta justificada')
+    taxa_assiduidade = round((presentes / total_aulas * 100), 1) if total_aulas > 0 else 0
+    
+    historico = []
+    for r in registros_db:
+        reg_dict = dict(r)
+        try:
+            reg_dict['data_formatada'] = datetime.strptime(r['data'], '%Y-%m-%d').strftime('%d/%m/%Y')
+        except Exception:
+            reg_dict['data_formatada'] = r['data']
+        historico.append(reg_dict)
+        
+    metricas = {
+        "total_aulas": total_aulas,
+        "presentes": presentes,
+        "faltas": faltas,
+        "justificadas": justificadas,
+        "taxa_assiduidade": taxa_assiduidade
+    }
+    
+    return templates.TemplateResponse(
+        request=request,
+        name="historico_aluno.html",
+        context={"aluno": aluno, "historico": historico, "metricas": metricas}
+    )

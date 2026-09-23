@@ -1,6 +1,8 @@
 import sqlite3
+from pathlib import Path
 
-conexao = sqlite3.connect('banco.db')
+DB_PATH = Path(__file__).resolve().parent / 'banco.db'
+conexao = sqlite3.connect(str(DB_PATH))
 cursor = conexao.cursor()
 
 # 1. Tabela de Alunos (Estrutura Completa da Ficha de Matrícula)
@@ -57,4 +59,4 @@ if cursor.fetchone()[0] == 0:
 
 conexao.commit()
 conexao.close()
-print("✅ Banco de dados recriado com sucesso! Tabelas prontas e utilizadores gerados.")
+print("[OK] Banco de dados recriado com sucesso! Tabelas prontas e utilizadores gerados.")
