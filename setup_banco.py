@@ -66,7 +66,30 @@ cursor.execute('''
     )
 ''')
 
-# 5. Criar os utilizadores padrão (As Fechaduras do Sistema com senhas hasheadas)
+# 5. Tabela de Turmas / Cursos e Vínculo com Professores
+cursor.execute('''
+    CREATE TABLE IF NOT EXISTS turmas (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nome TEXT UNIQUE NOT NULL,
+        descricao TEXT
+    )
+''')
+
+cursor.execute('''
+    CREATE TABLE IF NOT EXISTS professor_turmas (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        usuario_id INTEGER NOT NULL,
+        turma_nome TEXT NOT NULL,
+        FOREIGN KEY (usuario_id) REFERENCES usuarios (id) ON DELETE CASCADE,
+        UNIQUE(usuario_id, turma_nome)
+    )
+''')
+
+# 6. Criar turmas iniciais padrão
+for nome_t, desc_t in [('Manhã', 'Turno Matutino'), ('Tarde', 'Turno Vespertino'), ('Noite', 'Turno Noturno')]:
+    cursor.execute("INSERT OR IGNORE INTO turmas (nome, descricao) VALUES (?, ?)", (nome_t, desc_t))
+
+# 7. Criar os utilizadores padrão (As Fechaduras do Sistema com senhas hasheadas)
 cursor.execute('SELECT COUNT(*) FROM usuarios')
 if cursor.fetchone()[0] == 0:
     senha_padrao = hash_senha('123')
@@ -74,6 +97,9 @@ if cursor.fetchone()[0] == 0:
     cursor.execute("INSERT INTO usuarios (login, senha, perfil) VALUES ('coord', ?, 'coordenacao')", (senha_padrao,))
     # Acesso Restrito à Chamada
     cursor.execute("INSERT INTO usuarios (login, senha, perfil) VALUES ('prof', ?, 'professor')", (senha_padrao,))
+    prof_id = cursor.lastrowid
+    for nome_t in ['Manhã', 'Tarde', 'Noite']:
+        cursor.execute("INSERT OR IGNORE INTO professor_turmas (usuario_id, turma_nome) VALUES (?, ?)", (prof_id, nome_t))
 
 conexao.commit()
 conexao.close()

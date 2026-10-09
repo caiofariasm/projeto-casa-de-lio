@@ -1,7 +1,14 @@
 {% extends 'base.html' %}
 {% block conteudo %}
-<div class="row justify-content-center mt-4">
-    <div class="col-md-6">
+{% if sucesso == 'senha' %}
+<div class="alert alert-success alert-dismissible fade show rounded-4 shadow-sm border-0 mt-3 mb-2 px-4 py-3" role="alert">
+    <strong>✅ Senha atualizada com sucesso!</strong> O usuário já pode acessar o sistema utilizando a nova senha.
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fechar"></button>
+</div>
+{% endif %}
+
+<div class="row justify-content-center mt-4 mb-5">
+    <div class="col-lg-6 mb-4">
         <div class="card shadow-lg border-0" style="border-radius: 1.5rem;">
             <div class="card-header bg-primary text-white pt-4 pb-3" style="border-top-left-radius: 1.5rem; border-top-right-radius: 1.5rem;">
                 <h4 class="text-center fw-bold mb-0">Criar Novo Acesso</h4>
@@ -12,28 +19,55 @@
                 <form action="/usuarios/novo" method="POST">
                     
                     <div class="mb-4">
-                        <label class="form-label fw-semibold text-muted">Nome de Utilizador (Login)</label>
+                        <label class="form-label fw-semibold text-muted">Nome de Usuário (Login)</label>
                         <input type="text" name="login" class="form-control bg-light border-0" placeholder="Ex: prof.maria" required>
                     </div>
                     
                     <div class="mb-4">
-                        <label class="form-label fw-semibold text-muted">Palavra-passe</label>
+                        <label class="form-label fw-semibold text-muted">Senha</label>
                         <input type="password" name="senha" class="form-control bg-light border-0" required>
                     </div>
                     
-                    <div class="mb-5">
+                    <div class="mb-4">
                         <label class="form-label fw-semibold text-muted">Nível de Permissão</label>
-                        <select name="perfil" class="form-select bg-light border-0" required>
-                            <option value="professor" selected>Professor(a) - Apenas faz a chamada</option>
+                        <select name="perfil" id="selectPerfil" class="form-select bg-light border-0" required onchange="alternarBlocoTurmas()">
+                            <option value="professor" selected>Professor(a) - Acesso restrito às suas turmas</option>
                             <option value="coordenacao">Coordenação - Acesso total ao sistema</option>
                         </select>
+                    </div>
+
+                    <!-- SELEÇÃO DE TURMAS DO PROFESSOR -->
+                    <div id="blocoTurmasProfessor" class="mb-4 p-3 bg-light rounded-3 border">
+                        <label class="form-label fw-bold text-primary mb-2 d-block">
+                            📚 Turmas que este(a) Professor(a) terá acesso:
+                        </label>
+                        {% if turmas_disponiveis %}
+                            <div class="d-flex flex-wrap gap-3">
+                                {% for t in turmas_disponiveis %}
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="turmas" value="{{ t }}" id="chk_turma_{{ loop.index }}">
+                                    <label class="form-check-label fw-semibold" for="chk_turma_{{ loop.index }}">
+                                        {{ t }}
+                                    </label>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <p class="text-muted small mb-0">Nenhuma turma cadastrada ainda. <a href="/turmas">Criar turmas</a></p>
+                        {% endif %}
+                        <small class="text-muted d-block mt-2">
+                            O professor verá apenas os alunos das turmas selecionadas acima.
+                        </small>
                     </div>
                     
                     <div class="d-grid gap-2">
                         <button type="submit" class="btn btn-success btn-lg rounded-pill fw-bold text-white shadow-sm">
                             Criar Conta
                         </button>
-                        <a href="/dashboard" class="btn btn-light rounded-pill fw-bold text-muted mt-2">
+                        <a href="/turmas" class="btn btn-outline-primary rounded-pill fw-bold mt-2">
+                            Gerenciar Turmas & Cursos
+                        </a>
+                        <a href="/dashboard" class="btn btn-light rounded-pill fw-bold text-muted">
                             Cancelar e Voltar
                         </a>
                     </div>
@@ -41,5 +75,92 @@
             </div>
         </div>
     </div>
+
+    <div class="col-lg-6 mb-4 d-flex flex-column gap-4">
+        <!-- CARD DE ALTERAÇÃO DE SENHA DOS USUÁRIOS -->
+        <div class="card shadow-sm border-0" style="border-radius: 1.5rem;">
+            <div class="card-header bg-white border-bottom pt-4 pb-3 px-4" style="border-top-left-radius: 1.5rem; border-top-right-radius: 1.5rem;">
+                <h5 class="fw-bold text-primary mb-0">🔑 Trocar Senha de Usuário</h5>
+                <small class="text-muted">Redefina a senha de qualquer professor ou membro da coordenação</small>
+            </div>
+            <div class="card-body p-4">
+                <form action="/usuarios/alterar_senha" method="POST">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold text-muted small">Selecione o Usuário</label>
+                        <select name="usuario_id" class="form-select bg-light border-0" required>
+                            <option value="" disabled selected>Escolha o usuário...</option>
+                            {% for u in usuarios_sistema %}
+                            <option value="{{ u['id'] }}">
+                                {% if u['perfil'] == 'coordenacao' %}🛡️ {{ u['login'] }} (Coordenação){% else %}👨‍🏫 {{ u['login'] }} (Professor){% endif %}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold text-muted small">Nova Senha</label>
+                        <div class="input-group">
+                            <input type="password" name="nova_senha" id="inputNovaSenha" class="form-control bg-light border-0" placeholder="Digite a nova senha..." required>
+                            <button type="button" class="btn btn-outline-secondary border-0 bg-light" onclick="alternarVisibilidadeSenha()">
+                                👁️
+                            </button>
+                        </div>
+                    </div>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-warning text-white rounded-pill fw-bold shadow-sm">
+                            Atualizar Senha
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        {% if professores %}
+        <!-- CARD DE VÍNCULO DE TURMAS DOS PROFESSORES -->
+        <div class="card shadow-sm border-0" style="border-radius: 1.5rem;">
+            <div class="card-header bg-white border-bottom pt-4 pb-3 px-4" style="border-top-left-radius: 1.5rem; border-top-right-radius: 1.5rem;">
+                <h5 class="fw-bold text-primary mb-0">👨‍🏫 Professores Cadastrados & Turmas</h5>
+                <small class="text-muted">Marque ou desmarque as turmas que cada professor leciona</small>
+            </div>
+            <div class="card-body p-4">
+                {% for prof in professores %}
+                <form action="/turmas/vincular" method="POST" class="p-3 mb-3 bg-light rounded-3 border">
+                    <input type="hidden" name="usuario_id" value="{{ prof['id'] }}">
+                    <input type="hidden" name="origem" value="usuarios">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="fw-bold text-primary">👤 {{ prof['login'] }}</span>
+                        <button type="submit" class="btn btn-sm btn-primary rounded-pill px-3 fw-bold">
+                            Atualizar Turmas
+                        </button>
+                    </div>
+                    <div class="d-flex flex-wrap gap-3 mt-2">
+                        {% for t in turmas_disponiveis %}
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="turmas" value="{{ t }}" id="prof_{{ prof['id'] }}_{{ loop.index }}"
+                                   {% if t in prof['turmas'] %}checked{% endif %}>
+                            <label class="form-check-label small fw-semibold" for="prof_{{ prof['id'] }}_{{ loop.index }}">
+                                {{ t }}
+                            </label>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </form>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
 </div>
+
+<script>
+    function alternarBlocoTurmas() {
+        const perfil = document.getElementById('selectPerfil').value;
+        const bloco = document.getElementById('blocoTurmasProfessor');
+        bloco.style.display = (perfil === 'professor') ? 'block' : 'none';
+    }
+
+    function alternarVisibilidadeSenha() {
+        const input = document.getElementById('inputNovaSenha');
+        input.type = (input.type === 'password') ? 'text' : 'password';
+    }
+</script>
 {% endblock %}

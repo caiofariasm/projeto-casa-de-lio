@@ -68,12 +68,65 @@ def migrar_banco_se_necessario():
         cursor.execute("ALTER TABLE alunos ADD COLUMN consentimento_lgpd INTEGER DEFAULT 0")
     if 'data_consentimento' not in colunas:
         cursor.execute("ALTER TABLE alunos ADD COLUMN data_consentimento TEXT")
+
+    # 3. Tabelas de Turmas / Cursos e Vínculo com Professores
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS turmas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome TEXT UNIQUE NOT NULL,
+            descricao TEXT
+        )
+    ''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS professor_turmas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            usuario_id INTEGER NOT NULL,
+            turma_nome TEXT NOT NULL,
+            FOREIGN KEY (usuario_id) REFERENCES usuarios (id) ON DELETE CASCADE,
+            UNIQUE(usuario_id, turma_nome)
+        )
+    ''')
+
+    # Popular turmas padrão e turmas existentes em alunos
+    for nome_t, desc_t in [('Manhã', 'Turno Matutino'), ('Tarde', 'Turno Vespertino'), ('Noite', 'Turno Noturno')]:
+        cursor.execute("INSERT OR IGNORE INTO turmas (nome, descricao) VALUES (?, ?)", (nome_t, desc_t))
+
+    turmas_existentes = cursor.execute(
+        'SELECT DISTINCT turma FROM alunos WHERE turma IS NOT NULL AND turma != ""'
+    ).fetchall()
+    for row in turmas_existentes:
+        cursor.execute("INSERT OR IGNORE INTO turmas (nome, descricao) VALUES (?, ?)", (row['turma'], 'Turma Cadastrada'))
         
     conexao.commit()
     conexao.close()
 
 # Executa migração na inicialização
 migrar_banco_se_necessario()
+
+def obter_todas_turmas(conexao) -> list[str]:
+    turmas_db = conexao.execute('''
+        SELECT nome FROM turmas
+        UNION
+        SELECT DISTINCT turma as nome FROM alunos WHERE turma IS NOT NULL AND turma != ""
+        ORDER BY nome ASC
+    ''').fetchall()
+    return [t['nome'] for t in turmas_db]
+
+def obter_turmas_permitidas(conexao, usuario: dict) -> list[str]:
+    if not usuario:
+        return []
+    if usuario.get('perfil') == 'coordenacao':
+        return obter_todas_turmas(conexao)
+    
+    # Para professor, retorna exclusivamente as turmas vinculadas a ele
+    rows = conexao.execute('''
+        SELECT pt.turma_nome
+        FROM professor_turmas pt
+        JOIN usuarios u ON pt.usuario_id = u.id
+        WHERE u.login = ?
+        ORDER BY pt.turma_nome ASC
+    ''', (usuario.get('login', ''),)).fetchall()
+    return [r['turma_nome'] for r in rows]
 
 def registrar_auditoria(usuario: str, acao: str, alvo: str = None):
     try:
@@ -279,8 +332,26 @@ async def home(request: Request, data_chamada: str = None, turma: str = None):
     data_atual = data_chamada if data_chamada else date.today().isoformat()
         
     conexao = pegar_conexao()
-    turmas_db = conexao.execute('SELECT DISTINCT turma FROM alunos WHERE turma IS NOT NULL AND turma != "" ORDER BY turma ASC').fetchall()
-    turmas_disponiveis = [t['turma'] for t in turmas_db]
+    turmas_disponiveis = obter_turmas_permitidas(conexao, usuario)
+
+    # Se for professor e não possuir nenhuma turma vinculada
+    if usuario['perfil'] != 'coordenacao' and not turmas_disponiveis:
+        conexao.close()
+        return templates.TemplateResponse(
+            request=request,
+            name="index.html",
+            context={
+                "alunos": [],
+                "data_atual": data_atual,
+                "turmas_disponiveis": [],
+                "turma_selecionada": "",
+                "sem_turma_vinculada": True
+            }
+        )
+
+    # Se o professor tiver apenas 1 turma vinculada e nenhuma foi selecionada, seleciona automaticamente
+    if usuario['perfil'] != 'coordenacao' and not turma and len(turmas_disponiveis) == 1:
+        turma = turmas_disponiveis[0]
 
     query = '''
         SELECT a.id, a.nome, a.turma, p.status, p.atestado,
@@ -292,6 +363,12 @@ async def home(request: Request, data_chamada: str = None, turma: str = None):
     if turma and turma in turmas_disponiveis:
         query += ' WHERE a.turma = ?'
         parametros.append(turma)
+    elif usuario['perfil'] != 'coordenacao':
+        # Restringe estritamente às turmas às quais o professor tem acesso
+        placeholders = ','.join(['?'] * len(turmas_disponiveis))
+        query += f' WHERE a.turma IN ({placeholders})'
+        parametros.extend(turmas_disponiveis)
+        turma = ""
         
     query += ' ORDER BY a.nome ASC'
     alunos = conexao.execute(query, parametros).fetchall()
@@ -304,7 +381,8 @@ async def home(request: Request, data_chamada: str = None, turma: str = None):
             "alunos": alunos, 
             "data_atual": data_atual,
             "turmas_disponiveis": turmas_disponiveis,
-            "turma_selecionada": turma or ""
+            "turma_selecionada": turma if (turma and turma in turmas_disponiveis) else "",
+            "sem_turma_vinculada": False
         }
     )
 
@@ -315,13 +393,20 @@ async def anexar_atestado(request: Request, aluno_id: int, data_chamada: str, ar
     if not usuario:
         return RedirectResponse(url="/login", status_code=303)
         
+    conexao = pegar_conexao()
+    if usuario['perfil'] != 'coordenacao':
+        aluno_check = conexao.execute('SELECT turma FROM alunos WHERE id = ?', (aluno_id,)).fetchone()
+        turmas_perm = obter_turmas_permitidas(conexao, usuario)
+        if not aluno_check or aluno_check['turma'] not in turmas_perm:
+            conexao.close()
+            return RedirectResponse(url="/", status_code=303)
+
     # Limpa o nome do arquivo e salva no armazenamento configurado (Local ou S3/MinIO)
     nome_limpo = os.path.basename(arquivo.filename).replace(' ', '_')
     nome_seguro = f"atestado_{aluno_id}_{data_chamada}_{nome_limpo}"
     
     salvar_arquivo(arquivo.file, nome_seguro, content_type=arquivo.content_type or "application/octet-stream")
         
-    conexao = pegar_conexao()
     existe = conexao.execute('SELECT id FROM presencas WHERE aluno_id = ? AND data = ?', (aluno_id, data_chamada)).fetchone()
     
     # Automatiza a Justificativa marcando 'Falta justificada' e anexando o arquivo
@@ -349,6 +434,13 @@ async def registrar(request: Request, aluno_id: int, data_chamada: str, status: 
         return RedirectResponse(url="/login", status_code=303)
         
     conexao = pegar_conexao()
+    if usuario['perfil'] != 'coordenacao':
+        aluno_check = conexao.execute('SELECT turma FROM alunos WHERE id = ?', (aluno_id,)).fetchone()
+        turmas_perm = obter_turmas_permitidas(conexao, usuario)
+        if not aluno_check or aluno_check['turma'] not in turmas_perm:
+            conexao.close()
+            return RedirectResponse(url="/", status_code=303)
+
     # Verifica se o aluno já tem um registo nesse dia específico
     existe = conexao.execute('SELECT id FROM presencas WHERE aluno_id = ? AND data = ?', (aluno_id, data_chamada)).fetchone()
     
@@ -375,6 +467,7 @@ async def exportar(request: Request, mes: str = None, turma: str = None):
         return RedirectResponse(url="/login", status_code=303)
         
     conexao = pegar_conexao()
+    turmas_perm = obter_turmas_permitidas(conexao, usuario)
     
     # Consulta base
     query = '''
@@ -394,6 +487,13 @@ async def exportar(request: Request, mes: str = None, turma: str = None):
     if turma:
         query += " AND alunos.turma = ?"
         parametros.append(turma)
+    elif usuario['perfil'] != 'coordenacao':
+        if not turmas_perm:
+            conexao.close()
+            return Response(content="Nome;Turma;Data;Status\n".encode('utf-8-sig'), media_type="text/csv; charset=utf-8-sig")
+        placeholders = ','.join(['?'] * len(turmas_perm))
+        query += f" AND alunos.turma IN ({placeholders})"
+        parametros.extend(turmas_perm)
         
     query += " ORDER BY presencas.data DESC, alunos.nome ASC"
     
@@ -416,7 +516,10 @@ async def tela_cadastrar(request: Request):
     usuario = obter_usuario_atual(request)
     if not usuario or usuario['perfil'] != 'coordenacao':
         return RedirectResponse(url="/", status_code=303)
-    return templates.TemplateResponse(request=request, name="cadastro.html")
+    conexao = pegar_conexao()
+    turmas_disponiveis = obter_todas_turmas(conexao)
+    conexao.close()
+    return templates.TemplateResponse(request=request, name="cadastro.html", context={"turmas_disponiveis": turmas_disponiveis})
 
 # NOVO: A rota invisível que recebe os dados do formulário e salva no banco
 @app.post("/cadastrar")
@@ -447,6 +550,9 @@ async def salvar_cadastro(request: Request):
     
     conexao = pegar_conexao()
     cursor = conexao.cursor()
+    if turma:
+        cursor.execute("INSERT OR IGNORE INTO turmas (nome, descricao) VALUES (?, ?)", (turma, "Turma Cadastrada"))
+
     cursor.execute('''
         INSERT INTO alunos (
             nome, data_nascimento, turma, telefone, 
@@ -482,12 +588,68 @@ async def gerar_ficha(request: Request, aluno_id: int):
     return templates.TemplateResponse(request=request, name="ficha.html", context={"aluno": aluno})
 
 @app.get("/usuarios/novo", response_class=HTMLResponse)
-async def tela_novo_usuario(request: Request):
+async def tela_novo_usuario(request: Request, sucesso: str = None):
     # Proteção estrita: Apenas a coordenação pode aceder
     usuario = obter_usuario_atual(request)
     if not usuario or usuario['perfil'] != 'coordenacao':
         return RedirectResponse(url="/", status_code=303)
-    return templates.TemplateResponse(request=request, name="novo_usuario.html")
+        
+    conexao = pegar_conexao()
+    turmas_disponiveis = obter_todas_turmas(conexao)
+    usuarios_db = conexao.execute("SELECT id, login, perfil FROM usuarios ORDER BY perfil ASC, login ASC").fetchall()
+    usuarios_sistema = [dict(u) for u in usuarios_db]
+
+    professores_db = conexao.execute("SELECT id, login, perfil FROM usuarios WHERE perfil = 'professor' ORDER BY login ASC").fetchall()
+    professores = []
+    for prof in professores_db:
+        turmas_prof = conexao.execute(
+            "SELECT turma_nome FROM professor_turmas WHERE usuario_id = ? ORDER BY turma_nome ASC",
+            (prof['id'],)
+        ).fetchall()
+        professores.append({
+            "id": prof['id'],
+            "login": prof['login'],
+            "turmas": [t['turma_nome'] for t in turmas_prof]
+        })
+    conexao.close()
+    return templates.TemplateResponse(
+        request=request,
+        name="novo_usuario.html",
+        context={
+            "turmas_disponiveis": turmas_disponiveis,
+            "professores": professores,
+            "usuarios_sistema": usuarios_sistema,
+            "sucesso": sucesso
+        }
+    )
+
+@app.post("/usuarios/alterar_senha")
+async def alterar_senha_usuario(request: Request):
+    # Proteção estrita: Apenas a coordenação pode alterar senhas de usuários
+    usuario = obter_usuario_atual(request)
+    if not usuario or usuario['perfil'] != 'coordenacao':
+        return RedirectResponse(url="/", status_code=303)
+
+    formulario = await request.form()
+    usuario_id = formulario.get('usuario_id')
+    nova_senha = (formulario.get('nova_senha') or '').strip()
+
+    if usuario_id and nova_senha:
+        conexao = pegar_conexao()
+        alvo = conexao.execute("SELECT id, login, perfil FROM usuarios WHERE id = ?", (int(usuario_id),)).fetchone()
+        if alvo:
+            senha_hasheada = hash_senha(nova_senha)
+            conexao.execute("UPDATE usuarios SET senha = ? WHERE id = ?", (senha_hasheada, int(usuario_id)))
+            conexao.commit()
+            registrar_auditoria(
+                usuario['login'],
+                "ALTERACAO_SENHA",
+                f"Senha redefinida para o usuário: {alvo['login']} (Perfil: {alvo['perfil']})"
+            )
+        conexao.close()
+        return RedirectResponse(url="/usuarios/novo?sucesso=senha", status_code=303)
+
+    return RedirectResponse(url="/usuarios/novo", status_code=303)
 
 @app.post("/usuarios/novo")
 async def salvar_usuario(request: Request):
@@ -500,18 +662,32 @@ async def salvar_usuario(request: Request):
     login = formulario.get('login')
     senha = formulario.get('senha')
     perfil = formulario.get('perfil')
+    if hasattr(formulario, 'getlist'):
+        turmas_selecionadas = formulario.getlist('turmas')
+    else:
+        val_t = formulario.get('turmas', [])
+        turmas_selecionadas = val_t if isinstance(val_t, list) else ([val_t] if val_t else [])
     
     senha_hasheada = hash_senha(senha)
     
     conexao = pegar_conexao()
+    cursor = conexao.cursor()
     try:
-        conexao.execute('''
+        cursor.execute('''
             INSERT INTO usuarios (login, senha, perfil) 
             VALUES (?, ?, ?)
         ''', (login, senha_hasheada, perfil))
+        novo_user_id = cursor.lastrowid
+        if perfil == 'professor' and turmas_selecionadas:
+            for nome_t in turmas_selecionadas:
+                cursor.execute(
+                    "INSERT OR IGNORE INTO professor_turmas (usuario_id, turma_nome) VALUES (?, ?)",
+                    (novo_user_id, nome_t)
+                )
         conexao.commit()
-        registrar_auditoria(usuario['login'], "CRIACAO_USUARIO", f"Novo usuário criado: {login} (Perfil: {perfil})")
-    except:
+        detalhe_turmas = f", Turmas: {', '.join(turmas_selecionadas)}" if (perfil == 'professor' and turmas_selecionadas) else ""
+        registrar_auditoria(usuario['login'], "CRIACAO_USUARIO", f"Novo usuário criado: {login} (Perfil: {perfil}{detalhe_turmas})")
+    except Exception:
         # Se o utilizador já existir (o login é UNIQUE), o sistema ignora o erro para não quebrar
         pass 
     finally:
@@ -551,12 +727,17 @@ async def tela_editar_aluno(request: Request, aluno_id: int):
         
     conexao = pegar_conexao()
     aluno = conexao.execute('SELECT * FROM alunos WHERE id = ?', (aluno_id,)).fetchone()
+    turmas_disponiveis = obter_todas_turmas(conexao)
     conexao.close()
     
     if not aluno:
         return RedirectResponse(url="/alunos", status_code=303)
         
-    return templates.TemplateResponse(request=request, name="editar_aluno.html", context={"aluno": aluno})
+    return templates.TemplateResponse(
+        request=request,
+        name="editar_aluno.html",
+        context={"aluno": aluno, "turmas_disponiveis": turmas_disponiveis}
+    )
 
 @app.post("/alunos/editar/{aluno_id}")
 async def salvar_edicao_aluno(request: Request, aluno_id: int):
@@ -584,6 +765,9 @@ async def salvar_edicao_aluno(request: Request, aluno_id: int):
     data_consentimento = datetime.now().strftime("%Y-%m-%d %H:%M:%S") if consentimento_lgpd else None
     
     conexao = pegar_conexao()
+    if turma:
+        conexao.execute("INSERT OR IGNORE INTO turmas (nome, descricao) VALUES (?, ?)", (turma, "Turma Cadastrada"))
+
     conexao.execute('''
         UPDATE alunos SET
             nome = ?, data_nascimento = ?, turma = ?, telefone = ?,
@@ -639,6 +823,12 @@ async def historico_aluno(request: Request, aluno_id: int):
     if not aluno:
         conexao.close()
         return RedirectResponse(url="/", status_code=303)
+
+    if usuario['perfil'] != 'coordenacao':
+        turmas_perm = obter_turmas_permitidas(conexao, usuario)
+        if aluno['turma'] not in turmas_perm:
+            conexao.close()
+            return RedirectResponse(url="/", status_code=303)
         
     registros_db = conexao.execute('''
         SELECT id, data, status, atestado
@@ -676,6 +866,156 @@ async def historico_aluno(request: Request, aluno_id: int):
         name="historico_aluno.html",
         context={"aluno": aluno, "historico": historico, "metricas": metricas}
     )
+
+# --- ROTAS DE TURMAS / CURSOS E VÍNCULO DE PROFESSORES ---
+@app.get("/turmas", response_class=HTMLResponse)
+async def tela_turmas(request: Request):
+    usuario = obter_usuario_atual(request)
+    if not usuario:
+        return RedirectResponse(url="/login", status_code=303)
+        
+    conexao = pegar_conexao()
+    turmas_permitidas = obter_turmas_permitidas(conexao, usuario)
+    
+    # Busca dados das turmas cadastradas
+    todas_turmas_db = conexao.execute('''
+        SELECT t.id, t.nome, t.descricao,
+               (SELECT COUNT(*) FROM alunos a WHERE a.turma = t.nome) as total_alunos
+        FROM turmas t
+        ORDER BY t.nome ASC
+    ''').fetchall()
+    
+    lista_turmas = []
+    for t in todas_turmas_db:
+        if usuario['perfil'] != 'coordenacao' and t['nome'] not in turmas_permitidas:
+            continue
+        profs_t = conexao.execute('''
+            SELECT u.id, u.login
+            FROM professor_turmas pt
+            JOIN usuarios u ON pt.usuario_id = u.id
+            WHERE pt.turma_nome = ?
+            ORDER BY u.login ASC
+        ''', (t['nome'],)).fetchall()
+        lista_turmas.append({
+            "id": t['id'],
+            "nome": t['nome'],
+            "descricao": t['descricao'] or "Curso / Turma Ativa",
+            "total_alunos": t['total_alunos'],
+            "professores": [p['login'] for p in profs_t],
+            "professores_ids": [p['id'] for p in profs_t]
+        })
+        
+    professores_sistema = []
+    if usuario['perfil'] == 'coordenacao':
+        profs_db = conexao.execute("SELECT id, login FROM usuarios WHERE perfil = 'professor' ORDER BY login ASC").fetchall()
+        for p in profs_db:
+            pt_rows = conexao.execute("SELECT turma_nome FROM professor_turmas WHERE usuario_id = ? ORDER BY turma_nome ASC", (p['id'],)).fetchall()
+            professores_sistema.append({
+                "id": p['id'],
+                "login": p['login'],
+                "turmas": [r['turma_nome'] for r in pt_rows]
+            })
+            
+    conexao.close()
+    return templates.TemplateResponse(
+        request=request,
+        name="turmas.html",
+        context={
+            "turmas": lista_turmas,
+            "professores": professores_sistema,
+            "usuario_atual": usuario
+        }
+    )
+
+@app.post("/turmas/nova")
+async def criar_turma(request: Request):
+    usuario = obter_usuario_atual(request)
+    if not usuario or usuario['perfil'] != 'coordenacao':
+        return RedirectResponse(url="/", status_code=303)
+        
+    formulario = await request.form()
+    nome = (formulario.get('nome') or '').strip()
+    descricao = (formulario.get('descricao') or '').strip()
+    if hasattr(formulario, 'getlist'):
+        professores_ids = formulario.getlist('professores')
+    else:
+        val_p = formulario.get('professores', [])
+        professores_ids = val_p if isinstance(val_p, list) else ([val_p] if val_p else [])
+        
+    if nome:
+        conexao = pegar_conexao()
+        cursor = conexao.cursor()
+        cursor.execute("INSERT OR IGNORE INTO turmas (nome, descricao) VALUES (?, ?)", (nome, descricao))
+        for pid in professores_ids:
+            try:
+                cursor.execute(
+                    "INSERT OR IGNORE INTO professor_turmas (usuario_id, turma_nome) VALUES (?, ?)",
+                    (int(pid), nome)
+                )
+            except Exception:
+                pass
+        conexao.commit()
+        conexao.close()
+        registrar_auditoria(usuario['login'], "CRIACAO_TURMA", f"Nova turma/curso criada: {nome}")
+        
+    return RedirectResponse(url="/turmas", status_code=303)
+
+@app.post("/turmas/vincular")
+async def vincular_professor_turmas(request: Request):
+    usuario = obter_usuario_atual(request)
+    if not usuario or usuario['perfil'] != 'coordenacao':
+        return RedirectResponse(url="/", status_code=303)
+        
+    formulario = await request.form()
+    usuario_id = formulario.get('usuario_id')
+    origem = formulario.get('origem', 'turmas')
+    if hasattr(formulario, 'getlist'):
+        turmas_selecionadas = formulario.getlist('turmas')
+    else:
+        val_t = formulario.get('turmas', [])
+        turmas_selecionadas = val_t if isinstance(val_t, list) else ([val_t] if val_t else [])
+        
+    if usuario_id:
+        conexao = pegar_conexao()
+        prof_row = conexao.execute("SELECT login FROM usuarios WHERE id = ?", (int(usuario_id),)).fetchone()
+        nome_prof = prof_row['login'] if prof_row else f"ID {usuario_id}"
+        
+        conexao.execute("DELETE FROM professor_turmas WHERE usuario_id = ?", (int(usuario_id),))
+        for nome_t in turmas_selecionadas:
+            conexao.execute(
+                "INSERT OR IGNORE INTO professor_turmas (usuario_id, turma_nome) VALUES (?, ?)",
+                (int(usuario_id), nome_t)
+            )
+        conexao.commit()
+        conexao.close()
+        registrar_auditoria(
+            usuario['login'],
+            "VINCULO_PROFESSOR_TURMA",
+            f"Professor {nome_prof} vinculado às turmas: {', '.join(turmas_selecionadas) if turmas_selecionadas else 'Nenhuma'}"
+        )
+        
+    if origem == 'usuarios':
+        return RedirectResponse(url="/usuarios/novo", status_code=303)
+    return RedirectResponse(url="/turmas", status_code=303)
+
+@app.post("/turmas/excluir/{turma_id}")
+async def excluir_turma(request: Request, turma_id: int):
+    usuario = obter_usuario_atual(request)
+    if not usuario or usuario['perfil'] != 'coordenacao':
+        return RedirectResponse(url="/", status_code=303)
+        
+    conexao = pegar_conexao()
+    turma_row = conexao.execute("SELECT nome FROM turmas WHERE id = ?", (turma_id,)).fetchone()
+    if turma_row:
+        nome_t = turma_row['nome']
+        qtd_alunos = conexao.execute("SELECT COUNT(*) as c FROM alunos WHERE turma = ?", (nome_t,)).fetchone()['c']
+        if qtd_alunos == 0:
+            conexao.execute("DELETE FROM professor_turmas WHERE turma_nome = ?", (nome_t,))
+            conexao.execute("DELETE FROM turmas WHERE id = ?", (turma_id,))
+            conexao.commit()
+            registrar_auditoria(usuario['login'], "EXCLUSAO_TURMA", f"Turma excluída: {nome_t}")
+    conexao.close()
+    return RedirectResponse(url="/turmas", status_code=303)
 
 # --- ROTA DE AUDITORIA E CONFORMIDADE LGPD ---
 @app.get("/auditoria", response_class=HTMLResponse)
