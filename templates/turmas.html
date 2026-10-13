@@ -1,5 +1,17 @@
 {% extends 'base.html' %}
 {% block conteudo %}
+{% if sucesso == 'editada' %}
+<div class="alert alert-success alert-dismissible fade show rounded-4 shadow-sm border-0 mb-4 px-4 py-3" role="alert">
+    <strong>✅ Turma atualizada com sucesso!</strong> As informações e vínculos da turma foram salvos.
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fechar"></button>
+</div>
+{% elif erro == 'nome_duplicado' %}
+<div class="alert alert-danger alert-dismissible fade show rounded-4 shadow-sm border-0 mb-4 px-4 py-3" role="alert">
+    <strong>⚠️ Erro:</strong> Já existe outra turma com esse nome. Por favor, escolha um nome diferente.
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fechar"></button>
+</div>
+{% endif %}
+
 <div class="row mb-4 align-items-center">
     <div class="col-md-8">
         {% if request.session.get('perfil') == 'coordenacao' %}
@@ -28,12 +40,19 @@
                 <div class="card-body p-4">
                     <div class="d-flex justify-content-between align-items-start mb-2">
                         <span class="badge-institucional">{{ t['total_alunos'] }} Aluno(s)</span>
-                        {% if request.session.get('perfil') == 'coordenacao' and t['total_alunos'] == 0 %}
-                            <form action="/turmas/excluir/{{ t['id'] }}" method="POST" class="d-inline" onsubmit="return confirm('Deseja remover a turma {{ t['nome'] }}?');">
-                                <button type="submit" class="btn btn-sm btn-link text-danger p-0 text-decoration-none" title="Excluir turma vazia">
-                                    🗑️ Excluir
+                        {% if request.session.get('perfil') == 'coordenacao' %}
+                            <div class="d-flex align-items-center gap-2">
+                                <button type="button" class="btn btn-sm btn-outline-primary rounded-pill px-2 py-0 fw-semibold" style="font-size: 0.8rem;" data-bs-toggle="modal" data-bs-target="#modalEditarTurma{{ t['id'] }}" title="Editar informações da turma">
+                                    ✏️ Editar
                                 </button>
-                            </form>
+                                {% if t['total_alunos'] == 0 %}
+                                    <form action="/turmas/excluir/{{ t['id'] }}" method="POST" class="d-inline" onsubmit="return confirm('Deseja remover a turma {{ t['nome'] }}?');">
+                                        <button type="submit" class="btn btn-sm btn-link text-danger p-0 text-decoration-none" title="Excluir turma vazia" style="font-size: 0.8rem;">
+                                            🗑️ Excluir
+                                        </button>
+                                    </form>
+                                {% endif %}
+                            </div>
                         {% endif %}
                     </div>
 
@@ -58,6 +77,55 @@
                     </a>
                 </div>
             </div>
+
+            <!-- MODAL DE EDIÇÃO DE TURMA -->
+            {% if request.session.get('perfil') == 'coordenacao' %}
+            <div class="modal fade" id="modalEditarTurma{{ t['id'] }}" tabindex="-1" aria-labelledby="modalLabel{{ t['id'] }}" aria-hidden="true">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content border-0 shadow-lg" style="border-radius: 1.2rem;">
+                        <div class="modal-header bg-primary text-white py-3 px-4" style="border-top-left-radius: 1.2rem; border-top-right-radius: 1.2rem;">
+                            <h5 class="modal-title fw-bold" id="modalLabel{{ t['id'] }}">✏️ Editar Turma: {{ t['nome'] }}</h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                        </div>
+                        <form action="/turmas/editar/{{ t['id'] }}" method="POST">
+                            <div class="modal-body p-4 text-start">
+                                <div class="mb-3">
+                                    <label class="form-label fw-semibold text-muted">Nome do Curso / Turma</label>
+                                    <input type="text" name="nome" class="form-control bg-light border-0" value="{{ t['nome'] }}" required>
+                                    <small class="text-muted d-block mt-1">A alteração do nome atualizará automaticamente os alunos e professores vinculados.</small>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label fw-semibold text-muted">Descrição ou Horário</label>
+                                    <input type="text" name="descricao" class="form-control bg-light border-0" value="{{ t['descricao'] }}" placeholder="Ex: Segundas e Quartas, 14h às 16h">
+                                </div>
+
+                                {% if professores %}
+                                <div class="mb-3">
+                                    <label class="form-label fw-semibold text-muted d-block">Professor(es) Responsável(is):</label>
+                                    <div class="p-3 bg-light rounded-3" style="max-height: 160px; overflow-y: auto;">
+                                        {% for prof in professores %}
+                                        <div class="form-check mb-1">
+                                            <input class="form-check-input" type="checkbox" name="professores" value="{{ prof['id'] }}" 
+                                                   id="edit_prof_{{ t['id'] }}_{{ prof['id'] }}"
+                                                   {% if prof['id'] in t['professores_ids'] %}checked{% endif %}>
+                                            <label class="form-check-label fw-semibold" for="edit_prof_{{ t['id'] }}_{{ prof['id'] }}">
+                                                {{ prof['login'] }}
+                                            </label>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                                {% endif %}
+                            </div>
+                            <div class="modal-footer bg-light border-0 px-4 py-3" style="border-bottom-left-radius: 1.2rem; border-bottom-right-radius: 1.2rem;">
+                                <button type="button" class="btn btn-light rounded-pill px-4 fw-semibold" data-bs-dismiss="modal">Cancelar</button>
+                                <button type="submit" class="btn btn-primary rounded-pill px-4 fw-bold shadow-sm">Salvar Alterações</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
         </div>
         {% endfor %}
     {% else %}

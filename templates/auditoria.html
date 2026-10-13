@@ -69,6 +69,8 @@
                                 <span class="badge bg-primary rounded-pill px-3 py-2 fw-semibold">Vínculo Professor</span>
                             {% elif log['acao'] == 'EXCLUSAO_TURMA' %}
                                 <span class="badge bg-danger rounded-pill px-3 py-2 fw-semibold">Exclusão de Turma</span>
+                            {% elif log['acao'] == 'EDICAO_TURMA' %}
+                                <span class="badge bg-warning text-dark rounded-pill px-3 py-2 fw-semibold">Edição de Turma</span>
                             {% elif log['acao'] == 'ALTERACAO_SENHA' %}
                                 <span class="badge bg-warning text-white rounded-pill px-3 py-2 fw-semibold">Redefinição de Senha</span>
                             {% else %}

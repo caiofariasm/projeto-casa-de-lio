@@ -869,7 +869,7 @@ async def historico_aluno(request: Request, aluno_id: int):
 
 # --- ROTAS DE TURMAS / CURSOS E VÍNCULO DE PROFESSORES ---
 @app.get("/turmas", response_class=HTMLResponse)
-async def tela_turmas(request: Request):
+async def tela_turmas(request: Request, sucesso: str = None, erro: str = None):
     usuario = obter_usuario_atual(request)
     if not usuario:
         return RedirectResponse(url="/login", status_code=303)
@@ -923,7 +923,9 @@ async def tela_turmas(request: Request):
         context={
             "turmas": lista_turmas,
             "professores": professores_sistema,
-            "usuario_atual": usuario
+            "usuario_atual": usuario,
+            "sucesso": sucesso,
+            "erro": erro
         }
     )
 
@@ -997,6 +999,75 @@ async def vincular_professor_turmas(request: Request):
     if origem == 'usuarios':
         return RedirectResponse(url="/usuarios/novo", status_code=303)
     return RedirectResponse(url="/turmas", status_code=303)
+
+@app.post("/turmas/editar/{turma_id}")
+async def editar_turma(request: Request, turma_id: int):
+    usuario = obter_usuario_atual(request)
+    if not usuario or usuario['perfil'] != 'coordenacao':
+        return RedirectResponse(url="/", status_code=303)
+        
+    formulario = await request.form()
+    novo_nome = (formulario.get('nome') or '').strip()
+    nova_descricao = (formulario.get('descricao') or '').strip()
+    if hasattr(formulario, 'getlist'):
+        professores_ids = formulario.getlist('professores')
+    else:
+        val_p = formulario.get('professores', [])
+        professores_ids = val_p if isinstance(val_p, list) else ([val_p] if val_p else [])
+        
+    if not novo_nome:
+        return RedirectResponse(url="/turmas", status_code=303)
+        
+    conexao = pegar_conexao()
+    cursor = conexao.cursor()
+    turma_atual = cursor.execute("SELECT id, nome, descricao FROM turmas WHERE id = ?", (turma_id,)).fetchone()
+    if not turma_atual:
+        conexao.close()
+        return RedirectResponse(url="/turmas", status_code=303)
+        
+    nome_antigo = turma_atual['nome']
+    
+    # Se o nome mudou, verifica se já não existe outra turma com o novo nome
+    if novo_nome != nome_antigo:
+        conflito = cursor.execute("SELECT id FROM turmas WHERE nome = ? AND id != ?", (novo_nome, turma_id)).fetchone()
+        if conflito:
+            conexao.close()
+            return RedirectResponse(url="/turmas?erro=nome_duplicado", status_code=303)
+            
+    try:
+        # 1. Atualiza registro na tabela turmas
+        cursor.execute("UPDATE turmas SET nome = ?, descricao = ? WHERE id = ?", (novo_nome, nova_descricao, turma_id))
+        
+        # 2. Se o nome mudou, cascateia a alteração em alunos e professor_turmas
+        if novo_nome != nome_antigo:
+            cursor.execute("UPDATE alunos SET turma = ? WHERE turma = ?", (novo_nome, nome_antigo))
+            cursor.execute("UPDATE professor_turmas SET turma_nome = ? WHERE turma_nome = ?", (novo_nome, nome_antigo))
+            
+        # 3. Atualiza os vínculos de professores desta turma
+        cursor.execute("DELETE FROM professor_turmas WHERE turma_nome = ?", (novo_nome,))
+        for pid in professores_ids:
+            try:
+                cursor.execute(
+                    "INSERT OR IGNORE INTO professor_turmas (usuario_id, turma_nome) VALUES (?, ?)",
+                    (int(pid), novo_nome)
+                )
+            except Exception:
+                pass
+                
+        conexao.commit()
+        registrar_auditoria(
+            usuario['login'],
+            "EDICAO_TURMA",
+            f"Turma atualizada (ID {turma_id}): '{nome_antigo}' -> '{novo_nome}'"
+        )
+    except sqlite3.IntegrityError:
+        conexao.rollback()
+        conexao.close()
+        return RedirectResponse(url="/turmas?erro=nome_duplicado", status_code=303)
+    finally:
+        conexao.close()
+        
+    return RedirectResponse(url="/turmas?sucesso=editada", status_code=303)
 
 @app.post("/turmas/excluir/{turma_id}")
 async def excluir_turma(request: Request, turma_id: int):
