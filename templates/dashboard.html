@@ -63,7 +63,8 @@
     <div class="col-md-5 mb-4">
         <div class="card shadow-sm border-0 h-100">
             <div class="card-header bg-danger text-white fw-bold border-0 pt-3" style="border-top-left-radius: 1rem; border-top-right-radius: 1rem;">
-                ⚠️ Alerta de Risco (Mais Faltas)
+                 Alerta de Risco (Mais Faltas)
+                <span class="fw-normal small ms-1">({{ total_alunos_risco }} alunos)</span>
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
@@ -82,18 +83,18 @@
                                 <td class="fw-semibold">
                                     {{ aluno['nome'] }}
                                     {% if aluno['total_faltas'] >= 3 %}
-                                        <br><span class="badge bg-danger mt-1" style="font-size: 0.7rem;">⚠️ Vaga Disponibilizada</span>
+                                        <br><span class="badge bg-danger mt-1" style="font-size: 0.7rem;"> Vaga Disponibilizada</span>
                                     {% endif %}
                                 </td>
                                 <td><span class="badge bg-secondary">{{ aluno['turma'] }}</span></td>
                                 <td class="text-center fw-bold text-danger fs-5">{{ aluno['total_faltas'] }}</td>
                                 <td class="text-center">
                                     <!-- INTEGRAÇÃO WHATSAPP -->
-                                    <a href="https://wa.me/{{ aluno['telefone_whatsapp'] }}?text=Olá, notámos que o/a {{ aluno['nome'] }} faltou às últimas aulas na Casa de Lió. Gostaríamos de saber se está tudo bem e se precisam de algum apoio da instituição." 
+                                    <a href="{{ aluno['whatsapp_url'] }}"
                                        target="_blank" 
                                        class="btn btn-sm btn-success rounded-pill fw-bold shadow-sm"
                                        style="background-color: #25D366; border-color: #25D366;">
-                                        💬 Contatar
+                                         Contatar
                                     </a>
                                 </td>
                             </tr>
@@ -106,6 +107,21 @@
                     </table>
                 </div>
             </div>
+            {% if total_paginas_risco > 1 %}
+            <div class="card-footer bg-white border-0 pt-0 pb-3">
+                <nav aria-label="Paginação dos alunos com mais faltas">
+                    <ul class="pagination pagination-sm justify-content-center align-items-center gap-2 mb-0">
+                        <li class="page-item {% if pagina_risco <= 1 %}disabled{% endif %}">
+                            <a class="page-link" href="/dashboard?pagina_risco={{ pagina_risco - 1 }}" aria-label="Página anterior">Anterior</a>
+                        </li>
+                        <li class="page-item disabled"><span class="page-link border-0 bg-transparent text-muted">Página {{ pagina_risco }} de {{ total_paginas_risco }}</span></li>
+                        <li class="page-item {% if pagina_risco >= total_paginas_risco %}disabled{% endif %}">
+                            <a class="page-link" href="/dashboard?pagina_risco={{ pagina_risco + 1 }}" aria-label="Próxima página">Próxima</a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+            {% endif %}
         </div>
     </div>
 </div>

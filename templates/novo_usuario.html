@@ -1,8 +1,14 @@
 {% extends 'base.html' %}
 {% block conteudo %}
+<style>
+    .turma-lista { max-height: 16rem; overflow-y: auto; }
+    .turma-lista .list-group-item { cursor: pointer; padding: .55rem .75rem; }
+    .turma-lista .list-group-item:hover { background-color: #f4f7fb; }
+    .professor-lista { max-height: 11rem; overflow-y: auto; }
+</style>
 {% if sucesso == 'senha' %}
 <div class="alert alert-success alert-dismissible fade show rounded-4 shadow-sm border-0 mt-3 mb-2 px-4 py-3" role="alert">
-    <strong>✅ Senha atualizada com sucesso!</strong> O usuário já pode acessar o sistema utilizando a nova senha.
+    <strong> Senha atualizada com sucesso!</strong> O usuário já pode acessar o sistema utilizando a nova senha.
     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fechar"></button>
 </div>
 {% endif %}
@@ -39,18 +45,23 @@
                     <!-- SELEÇÃO DE TURMAS DO PROFESSOR -->
                     <div id="blocoTurmasProfessor" class="mb-4 p-3 bg-light rounded-3 border">
                         <label class="form-label fw-bold text-primary mb-2 d-block">
-                            📚 Turmas que este(a) Professor(a) terá acesso:
+                             Turmas que este(a) Professor(a) terá acesso:
                         </label>
                         {% if turmas_disponiveis %}
-                            <div class="d-flex flex-wrap gap-3">
+                            <div class="turma-searchable">
+                                <label class="visually-hidden" for="buscarTurmaNovoUsuario">Pesquisar turma</label>
+                                <input type="search" id="buscarTurmaNovoUsuario" class="form-control form-control-sm mb-2" placeholder="Pesquisar turma..." autocomplete="off">
+                                <div class="list-group turma-lista" id="listaTurmasNovoUsuario">
                                 {% for t in turmas_disponiveis %}
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" name="turmas" value="{{ t }}" id="chk_turma_{{ loop.index }}">
-                                    <label class="form-check-label fw-semibold" for="chk_turma_{{ loop.index }}">
+                                <label class="list-group-item d-flex align-items-center gap-2" data-turma-item>
+                                    <input class="form-check-input mt-0" type="checkbox" name="turmas" value="{{ t }}" id="chk_turma_{{ loop.index }}">
+                                    <span class="fw-semibold">
                                         {{ t }}
-                                    </label>
-                                </div>
+                                    </span>
+                                </label>
                                 {% endfor %}
+                                <div class="list-group-item text-muted small d-none" data-turma-empty>Nenhuma turma encontrada.</div>
+                                </div>
                             </div>
                         {% else %}
                             <p class="text-muted small mb-0">Nenhuma turma cadastrada ainda. <a href="/turmas">Criar turmas</a></p>
@@ -80,7 +91,7 @@
         <!-- CARD DE ALTERAÇÃO DE SENHA DOS USUÁRIOS -->
         <div class="card shadow-sm border-0" style="border-radius: 1.5rem;">
             <div class="card-header bg-white border-bottom pt-4 pb-3 px-4" style="border-top-left-radius: 1.5rem; border-top-right-radius: 1.5rem;">
-                <h5 class="fw-bold text-primary mb-0">🔑 Trocar Senha de Usuário</h5>
+                <h5 class="fw-bold text-primary mb-0"> Trocar Senha de Usuário</h5>
                 <small class="text-muted">Redefina a senha de qualquer professor ou membro da coordenação</small>
             </div>
             <div class="card-body p-4">
@@ -91,7 +102,7 @@
                             <option value="" disabled selected>Escolha o usuário...</option>
                             {% for u in usuarios_sistema %}
                             <option value="{{ u['id'] }}">
-                                {% if u['perfil'] == 'coordenacao' %}🛡️ {{ u['login'] }} (Coordenação){% else %}👨‍🏫 {{ u['login'] }} (Professor){% endif %}
+                                {% if u['perfil'] == 'coordenacao' %} {{ u['login'] }} (Coordenação){% else %} {{ u['login'] }} (Professor){% endif %}
                             </option>
                             {% endfor %}
                         </select>
@@ -101,7 +112,6 @@
                         <div class="input-group">
                             <input type="password" name="nova_senha" id="inputNovaSenha" class="form-control bg-light border-0" placeholder="Digite a nova senha..." required>
                             <button type="button" class="btn btn-outline-secondary border-0 bg-light" onclick="alternarVisibilidadeSenha()">
-                                👁️
                             </button>
                         </div>
                     </div>
@@ -118,30 +128,49 @@
         <!-- CARD DE VÍNCULO DE TURMAS DOS PROFESSORES -->
         <div class="card shadow-sm border-0" style="border-radius: 1.5rem;">
             <div class="card-header bg-white border-bottom pt-4 pb-3 px-4" style="border-top-left-radius: 1.5rem; border-top-right-radius: 1.5rem;">
-                <h5 class="fw-bold text-primary mb-0">👨‍🏫 Professores Cadastrados & Turmas</h5>
+                <h5 class="fw-bold text-primary mb-0"> Professores Cadastrados & Turmas</h5>
                 <small class="text-muted">Marque ou desmarque as turmas que cada professor leciona</small>
             </div>
             <div class="card-body p-4">
+                <div class="mb-3">
+                    <label class="form-label fw-semibold text-muted" for="buscarProfessorVinculo">Selecione os professores</label>
+                    <input type="search" id="buscarProfessorVinculo" class="form-control form-control-sm mb-2" placeholder="Pesquisar professor..." autocomplete="off">
+                    <div class="list-group professor-lista" id="listaSelecaoProfessores">
+                        {% for prof in professores %}
+                        <label class="list-group-item d-flex align-items-center gap-2" data-professor-item>
+                            <input class="form-check-input mt-0" type="checkbox" value="{{ prof['id'] }}" data-professor-selector>
+                            <span class="small fw-semibold">{{ prof['login'] }}</span>
+                        </label>
+                        {% endfor %}
+                        <div class="list-group-item text-muted small d-none" data-professor-empty>Nenhum professor encontrado.</div>
+                    </div>
+                    <small class="text-muted d-block mt-2" id="resumoProfessoresSelecionados" aria-live="polite">Nenhum professor selecionado.</small>
+                </div>
                 {% for prof in professores %}
-                <form action="/turmas/vincular" method="POST" class="p-3 mb-3 bg-light rounded-3 border">
+                <form action="/turmas/vincular" method="POST" class="p-3 mb-3 bg-light rounded-3 border d-none" data-professor-panel data-professor-id="{{ prof['id'] }}">
                     <input type="hidden" name="usuario_id" value="{{ prof['id'] }}">
                     <input type="hidden" name="origem" value="usuarios">
                     <div class="d-flex justify-content-between align-items-center mb-2">
-                        <span class="fw-bold text-primary">👤 {{ prof['login'] }}</span>
+                        <span class="fw-bold text-primary"> {{ prof['login'] }}</span>
                         <button type="submit" class="btn btn-sm btn-primary rounded-pill px-3 fw-bold">
                             Atualizar Turmas
                         </button>
                     </div>
-                    <div class="d-flex flex-wrap gap-3 mt-2">
+                    <div class="turma-searchable mt-2">
+                        <label class="visually-hidden" for="buscarTurmaProfessor{{ prof['id'] }}">Pesquisar turma para {{ prof['login'] }}</label>
+                        <input type="search" id="buscarTurmaProfessor{{ prof['id'] }}" class="form-control form-control-sm mb-2" placeholder="Pesquisar turma..." autocomplete="off">
+                        <div class="list-group turma-lista">
                         {% for t in turmas_disponiveis %}
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" name="turmas" value="{{ t }}" id="prof_{{ prof['id'] }}_{{ loop.index }}"
+                        <label class="list-group-item d-flex align-items-center gap-2" data-turma-item>
+                            <input class="form-check-input mt-0" type="checkbox" name="turmas" value="{{ t }}" id="prof_{{ prof['id'] }}_{{ loop.index }}"
                                    {% if t in prof['turmas'] %}checked{% endif %}>
-                            <label class="form-check-label small fw-semibold" for="prof_{{ prof['id'] }}_{{ loop.index }}">
+                            <span class="small fw-semibold">
                                 {{ t }}
-                            </label>
-                        </div>
+                            </span>
+                        </label>
                         {% endfor %}
+                        <div class="list-group-item text-muted small d-none" data-turma-empty>Nenhuma turma encontrada.</div>
+                        </div>
                     </div>
                 </form>
                 {% endfor %}
@@ -161,6 +190,60 @@
     function alternarVisibilidadeSenha() {
         const input = document.getElementById('inputNovaSenha');
         input.type = (input.type === 'password') ? 'text' : 'password';
+    }
+
+    document.querySelectorAll('.turma-searchable').forEach(function(bloco) {
+        const campo = bloco.querySelector('input[type="search"]');
+        const itens = Array.from(bloco.querySelectorAll('[data-turma-item]'));
+        const vazio = bloco.querySelector('[data-turma-empty]');
+        campo.addEventListener('input', function() {
+            const busca = campo.value.trim().toLocaleLowerCase('pt-BR').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+            let encontrados = 0;
+            itens.forEach(function(item) {
+                const texto = item.textContent.trim().toLocaleLowerCase('pt-BR').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+                const corresponde = texto.includes(busca);
+                item.classList.toggle('d-none', !corresponde);
+                if (corresponde) encontrados++;
+            });
+            vazio.classList.toggle('d-none', encontrados > 0);
+        });
+    });
+
+    const buscaProfessor = document.getElementById('buscarProfessorVinculo');
+    if (buscaProfessor) {
+        const opcoesProfessor = Array.from(document.querySelectorAll('[data-professor-item]'));
+        const seletoresProfessor = Array.from(document.querySelectorAll('[data-professor-selector]'));
+        const paineisProfessor = Array.from(document.querySelectorAll('[data-professor-panel]'));
+        const mensagemVaziaProfessor = document.querySelector('[data-professor-empty]');
+        const resumoProfessores = document.getElementById('resumoProfessoresSelecionados');
+
+        function normalizarBusca(valor) {
+            return valor.trim().toLocaleLowerCase('pt-BR').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        }
+
+        function atualizarProfessoresSelecionados() {
+            const selecionados = new Set(seletoresProfessor.filter(function(input) { return input.checked; }).map(function(input) { return input.value; }));
+            paineisProfessor.forEach(function(painel) {
+                painel.classList.toggle('d-none', !selecionados.has(painel.dataset.professorId));
+            });
+            resumoProfessores.textContent = selecionados.size
+                ? selecionados.size + (selecionados.size === 1 ? ' professor selecionado.' : ' professores selecionados.')
+                : 'Nenhum professor selecionado.';
+        }
+
+        seletoresProfessor.forEach(function(input) {
+            input.addEventListener('change', atualizarProfessoresSelecionados);
+        });
+        buscaProfessor.addEventListener('input', function() {
+            const termo = normalizarBusca(buscaProfessor.value);
+            let encontrados = 0;
+            opcoesProfessor.forEach(function(opcao) {
+                const corresponde = normalizarBusca(opcao.textContent).includes(termo);
+                opcao.classList.toggle('d-none', !corresponde);
+                if (corresponde) encontrados++;
+            });
+            mensagemVaziaProfessor.classList.toggle('d-none', encontrados > 0);
+        });
     }
 </script>
 {% endblock %}

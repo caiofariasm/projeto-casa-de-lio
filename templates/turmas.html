@@ -2,14 +2,18 @@
 {% block conteudo %}
 {% if sucesso == 'editada' %}
 <div class="alert alert-success alert-dismissible fade show rounded-4 shadow-sm border-0 mb-4 px-4 py-3" role="alert">
-    <strong>✅ Turma atualizada com sucesso!</strong> As informações e vínculos da turma foram salvos.
+    <strong> Turma atualizada com sucesso!</strong> As informações e vínculos da turma foram salvos.
     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fechar"></button>
 </div>
 {% elif erro == 'nome_duplicado' %}
 <div class="alert alert-danger alert-dismissible fade show rounded-4 shadow-sm border-0 mb-4 px-4 py-3" role="alert">
-    <strong>⚠️ Erro:</strong> Já existe outra turma com esse nome. Por favor, escolha um nome diferente.
+    <strong> Erro:</strong> Já existe outra turma com esse nome. Por favor, escolha um nome diferente.
     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fechar"></button>
 </div>
+{% elif erro == 'limite_invalido' %}
+<div class="alert alert-danger" role="alert">Informe um limite inteiro maior que zero ou deixe o campo vazio para não limitar a turma.</div>
+{% elif erro == 'limite_menor_que_ocupacao' %}
+<div class="alert alert-warning" role="alert">O limite não pode ser menor que a quantidade de alunos matriculados. Transfira alunos primeiro ou escolha um limite maior.</div>
 {% endif %}
 
 <div class="row mb-4 align-items-center">
@@ -25,7 +29,7 @@
     <div class="col-md-4 text-md-end mt-3 mt-md-0">
         {% if request.session.get('perfil') == 'coordenacao' %}
             <a href="/usuarios/novo" class="btn btn-outline-primary rounded-pill px-4 fw-semibold">
-                👨‍🏫 Novo Professor / Acesso
+                 Novo Professor / Acesso
             </a>
         {% endif %}
     </div>
@@ -39,16 +43,16 @@
             <div class="card shadow-sm border-0 h-100 d-flex flex-column justify-content-between" style="border-radius: 1.2rem; border-top: 5px solid var(--verde-adra) !important;">
                 <div class="card-body p-4">
                     <div class="d-flex justify-content-between align-items-start mb-2">
-                        <span class="badge-institucional">{{ t['total_alunos'] }} Aluno(s)</span>
+                        <span class="badge-institucional">{{ t['total_alunos'] }} aluno(s)</span>
                         {% if request.session.get('perfil') == 'coordenacao' %}
                             <div class="d-flex align-items-center gap-2">
                                 <button type="button" class="btn btn-sm btn-outline-primary rounded-pill px-2 py-0 fw-semibold" style="font-size: 0.8rem;" data-bs-toggle="modal" data-bs-target="#modalEditarTurma{{ t['id'] }}" title="Editar informações da turma">
-                                    ✏️ Editar
+                                     Editar
                                 </button>
                                 {% if t['total_alunos'] == 0 %}
                                     <form action="/turmas/excluir/{{ t['id'] }}" method="POST" class="d-inline" onsubmit="return confirm('Deseja remover a turma {{ t['nome'] }}?');">
                                         <button type="submit" class="btn btn-sm btn-link text-danger p-0 text-decoration-none" title="Excluir turma vazia" style="font-size: 0.8rem;">
-                                            🗑️ Excluir
+                                             Excluir
                                         </button>
                                     </form>
                                 {% endif %}
@@ -59,11 +63,25 @@
                     <h4 class="fw-bold text-primary mt-2 mb-1">{{ t['nome'] }}</h4>
                     <p class="text-muted small mb-3">{{ t['descricao'] }}</p>
 
+                    <div class="capacity-summary mb-3">
+                        <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
+                            <span class="small fw-semibold text-dark">
+                                {% if t['limite_alunos'] is none %}{{ t['total_alunos'] }} matriculados · sem limite{% else %}{{ t['total_alunos'] }}/{{ t['limite_alunos'] }} alunos{% endif %}
+                            </span>
+                            {% if t['lotada'] %}<span class="badge text-bg-danger">Lotada</span>{% endif %}
+                        </div>
+                        {% if t['limite_alunos'] is not none %}
+                        <div class="progress" role="progressbar" aria-label="Ocupação da turma {{ t['nome'] }}" aria-valuenow="{{ t['total_alunos'] }}" aria-valuemin="0" aria-valuemax="{{ t['limite_alunos'] }}" style="height: .45rem;">
+                            <div class="progress-bar {% if t['lotada'] %}bg-danger{% else %}bg-success{% endif %}" style="width: {{ t['ocupacao_percentual'] }}%"></div>
+                        </div>
+                        {% endif %}
+                    </div>
+
                     <div class="mt-3 pt-3 border-top">
                         <small class="text-muted fw-semibold d-block mb-1">Professor(es) Responsável(is):</small>
                         {% if t['professores'] %}
                             {% for prof_login in t['professores'] %}
-                                <span class="badge bg-light text-primary border me-1 mb-1">👨‍🏫 {{ prof_login }}</span>
+                                <span class="badge bg-light text-primary border me-1 mb-1"> {{ prof_login }}</span>
                             {% endfor %}
                         {% else %}
                             <span class="badge bg-light text-muted border">Nenhum professor vinculado</span>
@@ -73,7 +91,7 @@
 
                 <div class="card-footer bg-white border-0 p-4 pt-0">
                     <a href="/?turma={{ t['nome'] }}" class="btn btn-warning w-100 rounded-pill fw-bold text-white shadow-sm py-2">
-                        📋 Fazer Chamada desta Turma
+                         Fazer Chamada desta Turma
                     </a>
                 </div>
             </div>
@@ -84,7 +102,7 @@
                 <div class="modal-dialog modal-dialog-centered">
                     <div class="modal-content border-0 shadow-lg" style="border-radius: 1.2rem;">
                         <div class="modal-header bg-primary text-white py-3 px-4" style="border-top-left-radius: 1.2rem; border-top-right-radius: 1.2rem;">
-                            <h5 class="modal-title fw-bold" id="modalLabel{{ t['id'] }}">✏️ Editar Turma: {{ t['nome'] }}</h5>
+                            <h5 class="modal-title fw-bold" id="modalLabel{{ t['id'] }}"> Editar Turma: {{ t['nome'] }}</h5>
                             <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
                         </div>
                         <form action="/turmas/editar/{{ t['id'] }}" method="POST">
@@ -97,6 +115,12 @@
                                 <div class="mb-3">
                                     <label class="form-label fw-semibold text-muted">Descrição ou Horário</label>
                                     <input type="text" name="descricao" class="form-control bg-light border-0" value="{{ t['descricao'] }}" placeholder="Ex: Segundas e Quartas, 14h às 16h">
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label fw-semibold text-muted" for="limite_turma_{{ t['id'] }}">Limite de alunos</label>
+                                    <input type="number" min="1" step="1" id="limite_turma_{{ t['id'] }}" name="limite_alunos" class="form-control" value="{{ t['limite_alunos'] or '' }}" placeholder="Sem limite">
+                                    <small class="form-text text-muted">Matriculados: {{ t['total_alunos'] }}. O limite não pode ser menor que esse total.</small>
                                 </div>
 
                                 {% if professores %}
@@ -151,6 +175,10 @@
             <div class="card-body p-4">
                 <form action="/turmas/nova" method="POST">
                     <div class="mb-3">
+                        <label class="form-label fw-semibold text-muted" for="limite_nova_turma">Limite de alunos (opcional)</label>
+                        <input type="number" min="1" step="1" id="limite_nova_turma" name="limite_alunos" class="form-control" placeholder="Deixe vazio para não limitar">
+                    </div>
+                    <div class="mb-3">
                         <label class="form-label fw-semibold text-muted">Nome do Curso / Turma</label>
                         <input type="text" name="nome" class="form-control bg-light border-0" placeholder="Ex: Violão - Manhã, Informática - Tarde" required>
                     </div>
@@ -187,7 +215,7 @@
     <div class="col-lg-7">
         <div class="card shadow-sm border-0 h-100" style="border-radius: 1.2rem;">
             <div class="card-header bg-white border-bottom py-3 px-4 d-flex justify-content-between align-items-center" style="border-top-left-radius: 1.2rem; border-top-right-radius: 1.2rem;">
-                <h5 class="fw-bold text-primary mb-0">👨‍🏫 Permissões de Turmas por Professor</h5>
+                <h5 class="fw-bold text-primary mb-0"> Permissões de Turmas por Professor</h5>
                 <a href="/usuarios/novo" class="btn btn-sm btn-outline-primary rounded-pill fw-semibold">+ Criar Professor</a>
             </div>
             <div class="card-body p-4">
@@ -197,9 +225,9 @@
                         <input type="hidden" name="usuario_id" value="{{ prof['id'] }}">
                         <input type="hidden" name="origem" value="turmas">
                         <div class="d-flex justify-content-between align-items-center mb-2">
-                            <span class="fw-bold text-primary fs-6">👤 Professor(a): {{ prof['login'] }}</span>
+                            <span class="fw-bold text-primary fs-6"> Professor(a): {{ prof['login'] }}</span>
                             <button type="submit" class="btn btn-sm btn-success rounded-pill px-3 fw-bold">
-                                💾 Salvar Acesso
+                                 Salvar Acesso
                             </button>
                         </div>
                         <div class="d-flex flex-wrap gap-3 mt-2">

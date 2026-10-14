@@ -42,11 +42,11 @@ services:
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: ${S3_ACCESS_KEY:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:-minioadmin}
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY:?Configure S3_ACCESS_KEY no .env}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:?Configure S3_SECRET_KEY no .env}
     ports:
-      - "9000:9000"   # API S3
-      - "9001:9001"   # Painel Web MinIO
+      - "127.0.0.1:9000:9000"   # API S3 somente local
+      - "127.0.0.1:9001:9001"   # Console somente local
     volumes:
       - minio_data:/data
     networks:
@@ -58,10 +58,15 @@ services:
     container_name: casa_de_lio_minio_setup
     depends_on:
       - minio
+    environment:
+      MINIO_ACCESS_KEY: ${S3_ACCESS_KEY:?Configure S3_ACCESS_KEY no .env}
+      MINIO_SECRET_KEY: ${S3_SECRET_KEY:?Configure S3_SECRET_KEY no .env}
+      MINIO_BUCKET: ${S3_BUCKET_NAME:-casa-de-lio-uploads}
     entrypoint: >
       /bin/sh -c "
-      /usr/bin/mc alias set myminio http://minio:9000 minioadmin minioadmin;
-      /usr/bin/mc mb --ignore-existing myminio/casa-de-lio-uploads;
+      /usr/bin/mc alias set myminio http://minio:9000 $$MINIO_ACCESS_KEY $$MINIO_SECRET_KEY;
+      until /usr/bin/mc ready myminio; do sleep 2; done;
+      /usr/bin/mc mb --ignore-existing myminio/$$MINIO_BUCKET;
       exit 0;
       "
     networks:

@@ -206,8 +206,7 @@ Esta é a opção recomendada para produção ou homologação. Ela provisiona a
 4. **Acessar os Serviços:**
    * **Sistema Web (Nginx):** [http://localhost](http://localhost) (Porta 80)
    * **MinIO Console (Gerenciamento de Arquivos):** [http://localhost:9001](http://localhost:9001)
-     * *Usuário padrão MinIO:* `minioadmin`
-     * *Senha padrão MinIO:* `minioadmin`
+     * Use os valores `S3_ACCESS_KEY` e `S3_SECRET_KEY` definidos no `.env`.
 
 ---
 
@@ -232,9 +231,11 @@ Caso queira rodar diretamente na sua máquina sem Docker:
 3. **Garantir Arquivo `.env`:**
    Certifique-se de que o arquivo `.env` existe na raiz do projeto com as chaves configuradas:
    ```env
-   SECRET_KEY=sua_chave_secreta_aqui
+   SECRET_KEY=
    ALGORITHM=HS256
    ACCESS_TOKEN_EXPIRE_MINUTES=480
+COOKIE_SECURE=false
+BOOTSTRAP_ADMIN_PASSWORD=
    STORAGE_TYPE=local
    ```
 
@@ -259,11 +260,10 @@ Após rodar `python setup_banco.py`:
 
 | Perfil | Usuário | Senha Padrão | Nível de Acesso |
 | :--- | :--- | :--- | :--- |
-| **Coordenação** | `coord` | `123` | Acesso total (administrativo, LGPD, edições e usuários) |
-| **Professor** | `prof` | `123` | Registro de presenças, anexos e histórico |
+| Desenvolvimento: `coord` e `prof`, ambos com senha `123`. O setup define essa senha somente quando `ENVIRONMENT=development`; fora desse modo, use senha forte. Configure `BOOTSTRAP_ADMIN_PASSWORD=123` para o coordenador local. |
 
 > [!IMPORTANT]
-> No primeiro acesso em ambiente de produção, acerte as senhas para combinações fortes e remova contas de teste.
+> `123` serve apenas para testes locais. Não use `ENVIRONMENT=development` nem essas senhas em produção. Para produção, configure senha forte e `COOKIE_SECURE=true` atrás de HTTPS.
 
 ---
 
@@ -273,9 +273,11 @@ As configurações sensíveis ficam no arquivo `.env`:
 
 ```env
 # Segurança e Tokens JWT
-SECRET_KEY=chave_criptografica_gerada_aleatoriamente
+SECRET_KEY=
 ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=480
+COOKIE_SECURE=false
+BOOTSTRAP_ADMIN_PASSWORD=
 
 # Ambiente
 ENVIRONMENT=development
@@ -284,8 +286,8 @@ PORT=8000
 # Provedor de Arquivos (local ou s3)
 STORAGE_TYPE=local
 S3_ENDPOINT_URL=http://localhost:9000
-S3_ACCESS_KEY=minioadmin
-S3_SECRET_KEY=minioadmin
+S3_ACCESS_KEY=
+S3_SECRET_KEY=
 S3_BUCKET_NAME=casa-de-lio-uploads
 S3_REGION=us-east-1
 S3_USE_SSL=false
@@ -299,14 +301,14 @@ S3_USE_SSL=false
 | :--- | :--- | :--- | :--- |
 | `GET` | `/login` | Público | Exibe tela de autenticação |
 | `POST` | `/login` | Público | Valida credenciais e emite cookie JWT |
-| `GET` | `/sair` | Autenticado | Efetua logout e destroi sessão |
+| `POST` | `/sair` | Autenticado | Encerra a sessão |
 | `GET` | `/` | Autenticado | Diário de chamada diária com filtros por turma |
-| `GET` | `/registrar/{aluno_id}/{data}/{status}` | Autenticado | Registra "Presente" ou "Falta" para o aluno |
+| `POST` | `/registrar/{aluno_id}/{data}/{status}` | Autenticado | Registra presença ou falta |
 | `POST`| `/anexar_atestado/{aluno_id}/{data}` | Autenticado | Upload de atestado médico e justificativa automática |
 | `GET` | `/uploads/{nome_arquivo}` | Autenticado | Visualização segura de atestados (Redirecionamento S3 ou Local) |
 | `GET` | `/alunos/{aluno_id}/historico` | Autenticado | Histórico anual de assiduidade do aluno |
 | `GET` | `/dashboard` | Coordenação | Painel com métricas e alertas de falta via WhatsApp |
-| `GET` | `/relatorio/csv` | Coordenação | Exportação de planilha CSV com todas as frequências |
+| `GET` | `/exportar` | Autenticado | Exporta frequências dentro das turmas autorizadas |
 | `GET` | `/alunos` | Coordenação | Tabela de gestão e listagem geral de alunos |
 | `GET` | `/cadastrar` | Coordenação | Tela de matrícula de novo aluno com Termo LGPD |
 | `POST`| `/cadastrar` | Coordenação | Salva matrícula e grava consentimento LGPD |

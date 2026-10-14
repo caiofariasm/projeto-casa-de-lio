@@ -1,11 +1,15 @@
 import sqlite3
 from pathlib import Path
 import bcrypt
+import os
+from dotenv import load_dotenv
+from catalogo_turmas import TURMAS_INICIAIS
 
 def hash_senha(senha: str) -> str:
     return bcrypt.hashpw(senha.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
 
 DB_PATH = Path(__file__).resolve().parent / 'banco.db'
+load_dotenv(Path(__file__).resolve().parent / ".env")
 conexao = sqlite3.connect(str(DB_PATH))
 cursor = conexao.cursor()
 
@@ -71,9 +75,13 @@ cursor.execute('''
     CREATE TABLE IF NOT EXISTS turmas (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         nome TEXT UNIQUE NOT NULL,
-        descricao TEXT
+        descricao TEXT,
+        limite_alunos INTEGER CHECK (limite_alunos IS NULL OR limite_alunos > 0)
     )
 ''')
+colunas_turmas = {col[1] for col in cursor.execute("PRAGMA table_info(turmas)").fetchall()}
+if 'limite_alunos' not in colunas_turmas:
+    cursor.execute("ALTER TABLE turmas ADD COLUMN limite_alunos INTEGER")
 
 cursor.execute('''
     CREATE TABLE IF NOT EXISTS professor_turmas (
@@ -89,18 +97,41 @@ cursor.execute('''
 for nome_t, desc_t in [('Manhã', 'Turno Matutino'), ('Tarde', 'Turno Vespertino'), ('Noite', 'Turno Noturno')]:
     cursor.execute("INSERT OR IGNORE INTO turmas (nome, descricao) VALUES (?, ?)", (nome_t, desc_t))
 
+cursor.executemany(
+    "INSERT INTO turmas (nome, descricao, limite_alunos) VALUES (?, 'Turma inicial', ?) "
+    "ON CONFLICT(nome) DO UPDATE SET limite_alunos = excluded.limite_alunos",
+    TURMAS_INICIAIS,
+)
+
 # 7. Criar os utilizadores padrão (As Fechaduras do Sistema com senhas hasheadas)
-cursor.execute('SELECT COUNT(*) FROM usuarios')
-if cursor.fetchone()[0] == 0:
-    senha_padrao = hash_senha('123')
+senha_admin = os.getenv("BOOTSTRAP_ADMIN_PASSWORD")
+ambiente_dev = os.getenv("ENVIRONMENT", "development").strip().lower() == "development"
+if senha_admin:
+    if len(senha_admin) < 12 and not ambiente_dev:
+        raise SystemExit("BOOTSTRAP_ADMIN_PASSWORD deve ter ao menos 12 caracteres")
+    senha_padrao = hash_senha(senha_admin)
     # Acesso Total
-    cursor.execute("INSERT INTO usuarios (login, senha, perfil) VALUES ('coord', ?, 'coordenacao')", (senha_padrao,))
+    cursor.execute("SELECT id FROM usuarios WHERE login = 'coord'")
+    admin = cursor.fetchone()
+    if admin:
+        cursor.execute("UPDATE usuarios SET senha = ?, perfil = 'coordenacao' WHERE id = ?", (senha_padrao, admin[0]))
+    else:
+        cursor.execute("INSERT INTO usuarios (login, senha, perfil) VALUES ('coord', ?, 'coordenacao')", (senha_padrao,))
+
+if ambiente_dev:
+    senha_professor = hash_senha("123")
+    cursor.execute("SELECT id FROM usuarios WHERE login = 'prof'")
+    professor = cursor.fetchone()
+    if professor:
+        professor_id = professor[0]
+        cursor.execute("UPDATE usuarios SET senha = ?, perfil = 'professor' WHERE id = ?", (senha_professor, professor_id))
+    else:
+        cursor.execute("INSERT INTO usuarios (login, senha, perfil) VALUES ('prof', ?, 'professor')", (senha_professor,))
+        professor_id = cursor.lastrowid
+    for nome_turma in ('Manhã', 'Tarde', 'Noite'):
+        cursor.execute("INSERT OR IGNORE INTO professor_turmas (usuario_id, turma_nome) VALUES (?, ?)", (professor_id, nome_turma))
     # Acesso Restrito à Chamada
-    cursor.execute("INSERT INTO usuarios (login, senha, perfil) VALUES ('prof', ?, 'professor')", (senha_padrao,))
-    prof_id = cursor.lastrowid
-    for nome_t in ['Manhã', 'Tarde', 'Noite']:
-        cursor.execute("INSERT OR IGNORE INTO professor_turmas (usuario_id, turma_nome) VALUES (?, ?)", (prof_id, nome_t))
 
 conexao.commit()
 conexao.close()
-print("[OK] Banco de dados recriado com sucesso! Tabelas prontas e utilizadores gerados.")
+print("[OK] Esquema preparado. Nenhuma senha padrao foi criada.")

@@ -5,6 +5,21 @@
 <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 <script src="https://npmcdn.com/flatpickr/dist/l10n/pt.js"></script>
 
+<style>
+    #form-cadastro .card-body { background-color: #f4f7fb; }
+    #form-cadastro .form-control,
+    #form-cadastro .form-select {
+        background-color: #fff !important;
+        border: 1px solid #c7d1df !important;
+        box-shadow: 0 1px 2px rgba(22, 70, 61, .06);
+    }
+    #form-cadastro .form-control:focus,
+    #form-cadastro .form-select:focus {
+        border-color: #4c8a7b !important;
+        box-shadow: 0 0 0 .2rem rgba(22, 70, 61, .14);
+    }
+</style>
+
 <div class="row justify-content-center mb-5">
     <div class="col-md-10">
         <div class="card shadow-lg border-0" style="border-radius: 1.5rem;">
@@ -12,13 +27,14 @@
                 <h3 class="text-center fw-bold mb-0">Novo Cadastro Institucional</h3>
                 <p class="text-center text-white-50 mb-0">Preencha a ficha completa do beneficiário</p>
             </div>
-            
+        <form id="form-cadastro" action="/cadastrar" method="POST">
             <div class="card-body p-4 p-md-5">
-                <form action="/cadastrar" method="POST">
-                    
+                    {% if erro == 'turma_lotada' %}
+                    <div class="alert alert-warning" role="alert">Essa turma atingiu o limite de matrículas. Escolha outra turma ou aumente o limite antes de continuar.</div>
+                    {% endif %}
                     <!-- BLOCO 1: DADOS PESSOAIS -->
                     <h5 class="text-primary fw-bold mb-3 border-bottom pb-2">1. Dados Pessoais</h5>
-                    <div class="row mb-3">
+                  <div class="row mb-3">
                         <div class="col-md-8 mb-3 mb-md-0">
                             <label class="form-label fw-semibold text-muted">Nome Completo</label>
                             <input type="text" name="nome" class="form-control bg-light border-0" required>
@@ -36,8 +52,12 @@
                             </div>
                             <select name="turma" class="form-select bg-light border-0" required>
                                 <option value="" disabled selected>Selecione a turma</option>
-                                {% for t in (turmas_disponiveis or ['Manhã', 'Tarde', 'Noite']) %}
-                                    <option value="{{ t }}">{{ t }}</option>
+                                {% for t in turmas_disponiveis %}
+                                    <option value="{{ t['nome'] }}" {% if t['lotada'] %}disabled{% endif %}>
+                                        {{ t['nome'] }} —
+                                        {% if t['limite_alunos'] is none %}{{ t['total_alunos'] }} matriculados, sem limite{% else %}{{ t['total_alunos'] }}/{{ t['limite_alunos'] }} alunos{% endif %}
+                                        {% if t['lotada'] %} · lotada{% endif %}
+                                    </option>
                                 {% endfor %}
                             </select>
                         </div>
@@ -87,7 +107,7 @@
                         </div>
                         <div class="col-md-6">
                             <label class="form-label fw-semibold text-muted">Telefone de Emergência</label>
-                            <input type="tel" name="telefone_emergencia" class="form-control bg-light border-0 mascara-telefone" placeholder="(73) 98191-7878" maxlength="15" required>
+                            <input type="tel" name="telefone_emergencia" class="form-control bg-light border-0 mascara-telefone" placeholder="(**) 9****-****" maxlength="15" required>
                         </div>
                     </div>
                     <div class="mb-4">
@@ -97,7 +117,7 @@
 
                     <!-- BLOCO 4: MENORES DE IDADE -->
                     <div id="bloco_responsavel" style="display: none;" class="p-4 bg-light rounded-3 mb-4 border-start border-warning border-4 mt-4">
-                        <h5 class="text-warning fw-bold mb-3">⚠️ Obrigatório para Menores de Idade</h5>
+                        <h5 class="text-warning fw-bold mb-3"> Obrigatório para Menores de Idade</h5>
                         <div class="mb-3">
                             <label class="form-label fw-semibold text-muted">Nome Completo do Responsável Legal</label>
                             <input type="text" id="nome_responsavel" name="nome_responsavel" class="form-control border-0">
@@ -109,8 +129,9 @@
                             </label>
                         </div>
                     <!-- BLOCO 5: CONFORMIDADE LGPD (DADOS SENSÍVEIS E PRIVACIDADE) -->
+                    </div>
                     <div class="p-4 bg-light rounded-3 mb-4 border-start border-primary border-4 mt-4">
-                        <h5 class="text-primary fw-bold mb-2">🛡️ Termo de Consentimento e Privacidade (LGPD)</h5>
+                        <h5 class="text-primary fw-bold mb-2"> Termo de Consentimento e Privacidade (LGPD)</h5>
                         <p class="text-muted small mb-3">
                             Em cumprimento à Lei Geral de Proteção de Dados (Lei nº 13.709/2018), os dados pessoais e sensíveis coletados (incluindo condições de saúde, contatos de emergência e registros de menores) serão tratados exclusivamente para finalidades pedagógicas, controle de presenças, segurança e assistência social na Casa de Lió.
                         </p>

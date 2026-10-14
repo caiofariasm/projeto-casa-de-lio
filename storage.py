@@ -1,5 +1,6 @@
 import os
 import shutil
+import logging
 from pathlib import Path
 from typing import BinaryIO
 import boto3
@@ -21,6 +22,7 @@ S3_REGION = os.getenv("S3_REGION", "us-east-1")
 S3_USE_SSL = os.getenv("S3_USE_SSL", "false").lower() in ("true", "1", "yes")
 
 _s3_client = None
+logger = logging.getLogger(__name__)
 
 def obter_cliente_s3():
     """Retorna cliente S3 configurado para MinIO ou AWS S3."""
@@ -41,11 +43,15 @@ def garantir_bucket_s3(cliente=None):
     client = cliente or obter_cliente_s3()
     try:
         client.head_bucket(Bucket=S3_BUCKET_NAME)
-    except ClientError:
+    except ClientError as error:
+        codigo = error.response.get("Error", {}).get("Code")
+        if codigo not in {"404", "NoSuchBucket", "NotFound"}:
+            raise
         try:
             client.create_bucket(Bucket=S3_BUCKET_NAME)
-        except Exception as e:
-            print(f"[Storage S3 Warning] Erro ao criar bucket {S3_BUCKET_NAME}: {e}")
+        except ClientError as create_error:
+            if create_error.response.get("Error", {}).get("Code") not in {"BucketAlreadyOwnedByYou", "BucketAlreadyExists"}:
+                raise
 
 def salvar_arquivo(conteudo: bytes | BinaryIO, nome_arquivo: str, content_type: str = "application/octet-stream") -> str:
     """
@@ -91,16 +97,16 @@ def remover_arquivo(nome_arquivo: str) -> bool:
             cliente = obter_cliente_s3()
             cliente.delete_object(Bucket=S3_BUCKET_NAME, Key=nome_arquivo)
             sucesso = True
-        except Exception as e:
-            print(f"[Storage S3 Erro] Falha ao remover {nome_arquivo}: {e}")
+        except Exception:
+            logger.exception("Falha ao remover objeto do S3")
     else:
         destino = UPLOADS_DIR / nome_arquivo
         if destino.exists():
             try:
                 os.remove(destino)
                 sucesso = True
-            except Exception as e:
-                print(f"[Storage Local Erro] Falha ao remover {destino}: {e}")
+            except Exception:
+                logger.exception("Falha ao remover arquivo local")
     return sucesso
 
 def obter_url_arquivo(nome_arquivo: str) -> str:
@@ -121,9 +127,9 @@ def obter_url_arquivo(nome_arquivo: str) -> str:
                 ExpiresIn=3600  # 1 hora de validade
             )
             return url
-        except Exception as e:
-            print(f"[Storage S3 Erro] Falha ao gerar URL assinada: {e}")
-            return f"/uploads/{nome_arquivo}"
+        except Exception:
+            logger.exception("Falha ao gerar URL assinada")
+            return ""
     else:
         return f"/uploads/{nome_arquivo}"
 
@@ -137,8 +143,8 @@ def obter_conteudo_arquivo(nome_arquivo: str) -> bytes | None:
             cliente = obter_cliente_s3()
             resp = cliente.get_object(Bucket=S3_BUCKET_NAME, Key=nome_arquivo)
             return resp["Body"].read()
-        except Exception as e:
-            print(f"[Storage S3 Erro] Falha ao obter bytes de {nome_arquivo}: {e}")
+        except Exception:
+            logger.exception("Falha ao obter objeto do S3")
             return None
     else:
         destino = UPLOADS_DIR / nome_arquivo

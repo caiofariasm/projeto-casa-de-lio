@@ -1,17 +1,22 @@
-from fastapi import FastAPI, Request, Form, UploadFile, File
+from fastapi import FastAPI, Request, Form, UploadFile, File, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse, Response, FileResponse
 from fastapi.templating import Jinja2Templates
-from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 import sqlite3
 from datetime import date, datetime, timedelta, timezone
 import os
-import shutil
+import logging
+import uuid
+import re
+import csv
+import io
+from urllib.parse import urlencode
 from pathlib import Path
 import bcrypt
 import jwt
 from dotenv import load_dotenv
-from storage import salvar_arquivo, remover_arquivo, obter_url_arquivo
+from storage import salvar_arquivo, remover_arquivo, obter_conteudo_arquivo
+from catalogo_turmas import TURMAS_INICIAIS
 
 BASE_DIR = Path(__file__).resolve().parent
 load_dotenv(BASE_DIR / ".env")
@@ -19,13 +24,32 @@ load_dotenv(BASE_DIR / ".env")
 DB_PATH = BASE_DIR / "banco.db"
 UPLOADS_DIR = BASE_DIR / "uploads"
 
-SECRET_KEY = os.getenv("SECRET_KEY", "chave_secreta_padrao_dev_casa_de_lio")
-ALGORITHM = os.getenv("ALGORITHM", "HS256")
+SECRET_KEY = os.getenv("SECRET_KEY", "")
+if len(SECRET_KEY) < 32:
+    raise RuntimeError("Configure SECRET_KEY com pelo menos 32 caracteres aleatórios.")
+ALGORITHM = "HS256"
+ENVIRONMENT = os.getenv("ENVIRONMENT", "development").strip().lower()
+ALLOW_WEAK_DEV_PASSWORDS = ENVIRONMENT == "development"
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "480"))
+MAX_UPLOAD_BYTES = 25 * 1024 * 1024
+logger = logging.getLogger(__name__)
 
 app = FastAPI()
-app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY)
+COOKIE_SECURE = os.getenv("COOKIE_SECURE", "false").lower() in {"1", "true", "yes"}
+app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY, https_only=COOKIE_SECURE, same_site="lax")
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
+
+
+@app.middleware("http")
+async def validar_origem_requisicoes_mutaveis(request: Request, call_next):
+    if request.method in {"POST", "PUT", "PATCH", "DELETE"}:
+        origem = request.headers.get("origin") or request.headers.get("referer")
+        if not origem:
+            return Response("Cabeçalho de origem obrigatório", status_code=403)
+        from urllib.parse import urlsplit
+        if urlsplit(origem).netloc != request.headers.get("host"):
+            return Response("Origem não permitida", status_code=403)
+    return await call_next(request)
 
 # Rota segura para visualização/download de atestados (com suporte a Redirecionamento S3/MinIO ou Local)
 @app.get("/uploads/{nome_arquivo:path}")
@@ -34,18 +58,24 @@ async def visualizar_atestado(request: Request, nome_arquivo: str):
     if not usuario:
         return RedirectResponse(url="/login", status_code=303)
         
-    url = obter_url_arquivo(nome_arquivo)
-    if url.startswith("http://") or url.startswith("https://"):
-        return RedirectResponse(url=url, status_code=307)
+    if not re.fullmatch(r"[A-Za-z0-9_.-]{1,200}", nome_arquivo) or ".." in nome_arquivo:
+        raise HTTPException(status_code=404, detail="Arquivo não encontrado")
+    if os.getenv("STORAGE_TYPE", "local").strip().lower() == "s3":
+        conteudo = obter_conteudo_arquivo(nome_arquivo)
+        if conteudo is None:
+            return Response("Arquivo não encontrado", status_code=404)
+        return Response(conteudo, media_type="application/octet-stream", headers={"Content-Disposition": f'attachment; filename="{nome_arquivo}"', "X-Content-Type-Options": "nosniff"})
         
-    caminho = UPLOADS_DIR / nome_arquivo
-    if caminho.exists():
-        return FileResponse(str(caminho))
+    caminho = (UPLOADS_DIR / nome_arquivo).resolve()
+    if caminho.is_relative_to(UPLOADS_DIR.resolve()) and caminho.is_file():
+        return FileResponse(str(caminho), headers={"Content-Disposition": f'attachment; filename="{nome_arquivo}"', "X-Content-Type-Options": "nosniff"})
     return Response("Arquivo não encontrado", status_code=404)
 
 def pegar_conexao():
     conexao = sqlite3.connect(str(DB_PATH))
     conexao.row_factory = sqlite3.Row
+    conexao.execute("PRAGMA foreign_keys = ON")
+    conexao.execute("PRAGMA busy_timeout = 5000")
     return conexao
 
 def migrar_banco_se_necessario():
@@ -74,9 +104,13 @@ def migrar_banco_se_necessario():
         CREATE TABLE IF NOT EXISTS turmas (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             nome TEXT UNIQUE NOT NULL,
-            descricao TEXT
+            descricao TEXT,
+            limite_alunos INTEGER CHECK (limite_alunos IS NULL OR limite_alunos > 0)
         )
     ''')
+    colunas_turmas = {col['name'] for col in cursor.execute("PRAGMA table_info(turmas)").fetchall()}
+    if 'limite_alunos' not in colunas_turmas:
+        cursor.execute("ALTER TABLE turmas ADD COLUMN limite_alunos INTEGER")
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS professor_turmas (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -87,9 +121,23 @@ def migrar_banco_se_necessario():
         )
     ''')
 
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_presencas_aluno_data ON presencas(aluno_id, data)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_alunos_turma ON alunos(turma)")
+    duplicatas = cursor.execute("SELECT 1 FROM presencas GROUP BY aluno_id, data HAVING COUNT(*) > 1 LIMIT 1").fetchone()
+    if not duplicatas:
+        cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS uq_presencas_aluno_data ON presencas(aluno_id, data)")
+    else:
+        logger.error("Banco contém presenças duplicadas; índice único não aplicado. Corrija os duplicados manualmente.")
+
     # Popular turmas padrão e turmas existentes em alunos
     for nome_t, desc_t in [('Manhã', 'Turno Matutino'), ('Tarde', 'Turno Vespertino'), ('Noite', 'Turno Noturno')]:
         cursor.execute("INSERT OR IGNORE INTO turmas (nome, descricao) VALUES (?, ?)", (nome_t, desc_t))
+
+    cursor.executemany(
+        "INSERT INTO turmas (nome, descricao, limite_alunos) VALUES (?, 'Turma inicial', ?) "
+        "ON CONFLICT(nome) DO UPDATE SET limite_alunos = excluded.limite_alunos",
+        TURMAS_INICIAIS,
+    )
 
     turmas_existentes = cursor.execute(
         'SELECT DISTINCT turma FROM alunos WHERE turma IS NOT NULL AND turma != ""'
@@ -112,6 +160,23 @@ def obter_todas_turmas(conexao) -> list[str]:
     ''').fetchall()
     return [t['nome'] for t in turmas_db]
 
+
+def obter_turmas_para_matricula(conexao) -> list[dict]:
+    rows = conexao.execute('''
+        SELECT t.nome, t.limite_alunos, COUNT(a.id) AS total_alunos
+        FROM turmas t
+        LEFT JOIN alunos a ON a.turma = t.nome
+        GROUP BY t.id, t.nome, t.limite_alunos
+        ORDER BY t.nome ASC
+    ''').fetchall()
+    return [
+        {
+            **dict(row),
+            "lotada": row["limite_alunos"] is not None and row["total_alunos"] >= row["limite_alunos"],
+        }
+        for row in rows
+    ]
+
 def obter_turmas_permitidas(conexao, usuario: dict) -> list[str]:
     if not usuario:
         return []
@@ -129,6 +194,7 @@ def obter_turmas_permitidas(conexao, usuario: dict) -> list[str]:
     return [r['turma_nome'] for r in rows]
 
 def registrar_auditoria(usuario: str, acao: str, alvo: str = None):
+    conexao = None
     try:
         conexao = pegar_conexao()
         conexao.execute(
@@ -136,9 +202,11 @@ def registrar_auditoria(usuario: str, acao: str, alvo: str = None):
             (usuario, acao, alvo, datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
         )
         conexao.commit()
-        conexao.close()
     except Exception as e:
-        print(f"[LGPD Log Erro]: {e}")
+        logger.exception("Falha ao registrar auditoria")
+    finally:
+        if conexao:
+            conexao.close()
 
 # --- UTILITÁRIOS DE CRIPTOGRAFIA & JWT ---
 def hash_senha(senha: str) -> str:
@@ -147,7 +215,7 @@ def hash_senha(senha: str) -> str:
 def verificar_senha(senha: str, senha_hash: str) -> bool:
     try:
         return bcrypt.checkpw(senha.encode('utf-8'), senha_hash.encode('utf-8'))
-    except Exception:
+    except (ValueError, TypeError):
         # Fallback de compatibilidade caso haja senhas legadas em texto puro
         return senha == senha_hash
 
@@ -182,12 +250,12 @@ def obter_usuario_atual(request: Request) -> dict | None:
     if token:
         payload = decodificar_token_jwt(token)
         if payload and "sub" in payload:
-            return {"login": payload["sub"], "perfil": payload.get("perfil", "professor")}
+            conexao = pegar_conexao()
+            usuario = conexao.execute("SELECT login, perfil FROM usuarios WHERE login = ?", (payload["sub"],)).fetchone()
+            conexao.close()
+            if usuario:
+                return {"login": usuario["login"], "perfil": usuario["perfil"]}
             
-    # 3. Fallback de sessão
-    if request.session.get("perfil"):
-        return {"login": request.session.get("login", "usuario"), "perfil": request.session.get("perfil")}
-        
     return None
 
 # --- SISTEMA DE LOGIN COM JWT ---
@@ -203,7 +271,7 @@ async def fazer_login(request: Request, login: str = Form(...), senha: str = For
     conexao = pegar_conexao()
     usuario = conexao.execute('SELECT * FROM usuarios WHERE login = ?', (login,)).fetchone()
     
-    if usuario and verificar_senha(senha, usuario['senha']):
+    if (ALLOW_WEAK_DEV_PASSWORDS or len(senha) >= 12) and usuario and verificar_senha(senha, usuario['senha']):
         # Se a senha estava em texto puro (legada), atualiza silenciosamente para bcrypt
         if usuario['senha'] == senha:
             novo_hash = hash_senha(senha)
@@ -224,6 +292,7 @@ async def fazer_login(request: Request, login: str = Form(...), senha: str = For
             key="access_token",
             value=token,
             httponly=True,
+            secure=COOKIE_SECURE,
             max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
             samesite="lax"
         )
@@ -234,7 +303,7 @@ async def fazer_login(request: Request, login: str = Form(...), senha: str = For
 # --- NOVO: DASHBOARD ANALÍTICO (Apenas Coordenação) ---
 
 @app.get("/dashboard", response_class=HTMLResponse)
-async def dashboard(request: Request):
+async def dashboard(request: Request, pagina_risco: int = 1):
     usuario = obter_usuario_atual(request)
     if not usuario or usuario['perfil'] != 'coordenacao':
         return RedirectResponse(url="/", status_code=303)
@@ -276,25 +345,39 @@ async def dashboard(request: Request):
         "faltas": [t['faltas'] for t in turmas_db]
     }
     
-    # NOVO: Alerta de Faltas com captação de telefone para WhatsApp
+    # Alerta de faltas paginado, ordenado pelos maiores totais.
+    itens_por_pagina_risco = 5
+    total_alunos_risco = conexao.execute('''
+        SELECT COUNT(DISTINCT aluno_id)
+        FROM presencas
+        WHERE status = 'Falta'
+    ''').fetchone()[0]
+    total_paginas_risco = max(1, (total_alunos_risco + itens_por_pagina_risco - 1) // itens_por_pagina_risco)
+    pagina_risco = max(1, min(pagina_risco, total_paginas_risco))
+    deslocamento_risco = (pagina_risco - 1) * itens_por_pagina_risco
     alunos_risco_db = conexao.execute('''
         SELECT alunos.nome, alunos.turma, alunos.telefone, COUNT(presencas.id) as total_faltas
         FROM presencas
         JOIN alunos ON presencas.aluno_id = alunos.id
         WHERE presencas.status = 'Falta'
         GROUP BY alunos.id
-        ORDER BY total_faltas DESC
-        LIMIT 5
-    ''').fetchall()
+        ORDER BY total_faltas DESC, alunos.nome COLLATE NOCASE ASC, alunos.id ASC
+        LIMIT ? OFFSET ?
+    ''', (itens_por_pagina_risco, deslocamento_risco)).fetchall()
     
     # Prepara os números de telefone removendo traços e espaços para o WhatsApp
     alunos_risco = []
     for aluno in alunos_risco_db:
         aluno_dict = dict(aluno)
-        telefone_limpo = ''.join(filter(str.isdigit, aluno_dict['telefone']))
-        if len(telefone_limpo) >= 10:
+        telefone_limpo = ''.join(filter(str.isdigit, aluno_dict['telefone'] or ''))
+        if len(telefone_limpo) in (10, 11):
             telefone_limpo = "55" + telefone_limpo # Adiciona o DDI do Brasil automaticamente
         aluno_dict['telefone_whatsapp'] = telefone_limpo
+        if telefone_limpo:
+            texto_whatsapp = f"Olá, notamos que o/a {aluno_dict['nome']} faltou às últimas aulas na Casa de Lió. Gostaríamos de saber se está tudo bem e se precisam de apoio."
+            aluno_dict['whatsapp_url'] = f"https://wa.me/{telefone_limpo}?{urlencode({'text': texto_whatsapp})}"
+        else:
+            aluno_dict['whatsapp_url'] = ""
         alunos_risco.append(aluno_dict)
     
     conexao.close()
@@ -311,15 +394,17 @@ async def dashboard(request: Request):
             "total_alunos": total_alunos, "dados_grafico": dados_grafico,
             "taxa_assiduidade": taxa_assiduidade, "datas": datas, 
             "presentes": presentes, "faltas": faltas, "justificadas": justificadas,
-            "dados_turmas": dados_turmas, "alunos_risco": alunos_risco
+            "dados_turmas": dados_turmas, "alunos_risco": alunos_risco,
+            "pagina_risco": pagina_risco, "total_paginas_risco": total_paginas_risco,
+            "total_alunos_risco": total_alunos_risco
         }
     )
       
-@app.get("/sair")
+@app.post("/sair")
 async def sair(request: Request):
     request.session.clear()
     response = RedirectResponse(url="/login", status_code=303)
-    response.delete_cookie(key="access_token")
+    response.delete_cookie(key="access_token", secure=COOKIE_SECURE, httponly=True, samesite="lax")
     return response
 
 # --- ROTAS PROTEGIDAS ---
@@ -330,6 +415,10 @@ async def home(request: Request, data_chamada: str = None, turma: str = None):
         return RedirectResponse(url="/login", status_code=303)
         
     data_atual = data_chamada if data_chamada else date.today().isoformat()
+    try:
+        datetime.strptime(data_atual, "%Y-%m-%d")
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Data inválida; use AAAA-MM-DD")
         
     conexao = pegar_conexao()
     turmas_disponiveis = obter_turmas_permitidas(conexao, usuario)
@@ -394,6 +483,10 @@ async def anexar_atestado(request: Request, aluno_id: int, data_chamada: str, ar
         return RedirectResponse(url="/login", status_code=303)
         
     conexao = pegar_conexao()
+    aluno_existe = conexao.execute("SELECT 1 FROM alunos WHERE id = ?", (aluno_id,)).fetchone()
+    if not aluno_existe:
+        conexao.close()
+        raise HTTPException(status_code=404, detail="Aluno não encontrado")
     if usuario['perfil'] != 'coordenacao':
         aluno_check = conexao.execute('SELECT turma FROM alunos WHERE id = ?', (aluno_id,)).fetchone()
         turmas_perm = obter_turmas_permitidas(conexao, usuario)
@@ -401,11 +494,22 @@ async def anexar_atestado(request: Request, aluno_id: int, data_chamada: str, ar
             conexao.close()
             return RedirectResponse(url="/", status_code=303)
 
-    # Limpa o nome do arquivo e salva no armazenamento configurado (Local ou S3/MinIO)
-    nome_limpo = os.path.basename(arquivo.filename).replace(' ', '_')
-    nome_seguro = f"atestado_{aluno_id}_{data_chamada}_{nome_limpo}"
-    
-    salvar_arquivo(arquivo.file, nome_seguro, content_type=arquivo.content_type or "application/octet-stream")
+    try:
+        datetime.strptime(data_chamada, "%Y-%m-%d")
+    except ValueError:
+        conexao.close()
+        raise HTTPException(status_code=422, detail="Data inválida")
+    conteudo = await arquivo.read(MAX_UPLOAD_BYTES + 1)
+    if not conteudo or len(conteudo) > MAX_UPLOAD_BYTES:
+        conexao.close()
+        raise HTTPException(status_code=413, detail="O arquivo deve ter até 25 MB")
+    formatos = ((b"%PDF-", ".pdf", "application/pdf"), (b"\xff\xd8\xff", ".jpg", "image/jpeg"), (b"\x89PNG\r\n\x1a\n", ".png", "image/png"), (b"GIF87a", ".gif", "image/gif"), (b"GIF89a", ".gif", "image/gif"), (b"RIFF", ".webp", "image/webp"))
+    formato = next((item for item in formatos if conteudo.startswith(item[0]) and (item[1] != ".webp" or conteudo[8:12] == b"WEBP")), None)
+    if not formato:
+        conexao.close()
+        raise HTTPException(status_code=415, detail="Envie um PDF ou imagem válida (JPG, PNG, GIF ou WebP)")
+    nome_seguro = f"atestado_{aluno_id}_{uuid.uuid4().hex}{formato[1]}"
+    salvar_arquivo(conteudo, nome_seguro, content_type=formato[2])
         
     existe = conexao.execute('SELECT id FROM presencas WHERE aluno_id = ? AND data = ?', (aluno_id, data_chamada)).fetchone()
     
@@ -427,13 +531,22 @@ async def anexar_atestado(request: Request, aluno_id: int, data_chamada: str, ar
         url += f"&turma={turma}"
     return RedirectResponse(url=url, status_code=303)
 
-@app.get("/registrar/{aluno_id}/{data_chamada}/{status}")
+@app.post("/registrar/{aluno_id}/{data_chamada}/{status}")
 async def registrar(request: Request, aluno_id: int, data_chamada: str, status: str, turma: str = None):
     usuario = obter_usuario_atual(request)
     if not usuario:
         return RedirectResponse(url="/login", status_code=303)
         
+    if status not in {"Presente", "Falta", "Falta justificada"}:
+        raise HTTPException(status_code=422, detail="Status inválido")
+    try:
+        datetime.strptime(data_chamada, "%Y-%m-%d")
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Data inválida")
     conexao = pegar_conexao()
+    if not conexao.execute("SELECT 1 FROM alunos WHERE id = ?", (aluno_id,)).fetchone():
+        conexao.close()
+        raise HTTPException(status_code=404, detail="Aluno não encontrado")
     if usuario['perfil'] != 'coordenacao':
         aluno_check = conexao.execute('SELECT turma FROM alunos WHERE id = ?', (aluno_id,)).fetchone()
         turmas_perm = obter_turmas_permitidas(conexao, usuario)
@@ -468,6 +581,9 @@ async def exportar(request: Request, mes: str = None, turma: str = None):
         
     conexao = pegar_conexao()
     turmas_perm = obter_turmas_permitidas(conexao, usuario)
+    if usuario.get("perfil") != "coordenacao" and turma and turma not in turmas_perm:
+        conexao.close()
+        raise HTTPException(status_code=403, detail="Sem acesso a esta turma")
     
     # Consulta base
     query = '''
@@ -480,6 +596,9 @@ async def exportar(request: Request, mes: str = None, turma: str = None):
     
     # Se a pessoa escolheu um mês (O formato chega como YYYY-MM)
     if mes:
+        if not re.fullmatch(r"\d{4}-(0[1-9]|1[0-2])", mes):
+            conexao.close()
+            raise HTTPException(status_code=422, detail="Mês inválido; use AAAA-MM")
         query += " AND presencas.data LIKE ?"
         parametros.append(f"{mes}%")
         
@@ -500,26 +619,32 @@ async def exportar(request: Request, mes: str = None, turma: str = None):
     relatorio = conexao.execute(query, parametros).fetchall()
     conexao.close()
     
-    texto_csv = "Nome;Turma;Data;Status\n"
+    buffer_csv = io.StringIO(newline="")
+    writer = csv.writer(buffer_csv, delimiter=";")
+    writer.writerow(["Nome", "Turma", "Data", "Status"])
     for linha in relatorio:
-        data_br = datetime.strptime(linha['data'], '%Y-%m-%d').strftime('%d/%m/%Y')
-        texto_csv += f"{linha['nome']};{linha['turma']};{data_br};{linha['status']}\n"
+        try:
+            data_br = datetime.strptime(linha['data'], '%Y-%m-%d').strftime('%d/%m/%Y')
+        except (TypeError, ValueError):
+            data_br = linha['data'] or ""
+        valores = [linha['nome'], linha['turma'], data_br, linha['status']]
+        writer.writerow([("'" + str(v) if str(v).startswith(("=", "+", "-", "@")) else v) for v in valores])
         
     return Response(
-        content=texto_csv.encode('utf-8-sig'),
+        content=buffer_csv.getvalue().encode('utf-8-sig'),
         media_type="text/csv; charset=utf-8-sig",
         headers={"Content-Disposition": "attachment; filename=relatorio_presencas.csv"}
     )
     
 @app.get("/cadastrar", response_class=HTMLResponse)
-async def tela_cadastrar(request: Request):
+async def tela_cadastrar(request: Request, erro: str = None):
     usuario = obter_usuario_atual(request)
     if not usuario or usuario['perfil'] != 'coordenacao':
         return RedirectResponse(url="/", status_code=303)
     conexao = pegar_conexao()
-    turmas_disponiveis = obter_todas_turmas(conexao)
+    turmas_disponiveis = obter_turmas_para_matricula(conexao)
     conexao.close()
-    return templates.TemplateResponse(request=request, name="cadastro.html", context={"turmas_disponiveis": turmas_disponiveis})
+    return templates.TemplateResponse(request=request, name="cadastro.html", context={"turmas_disponiveis": turmas_disponiveis, "erro": erro})
 
 # NOVO: A rota invisível que recebe os dados do formulário e salva no banco
 @app.post("/cadastrar")
@@ -549,9 +674,18 @@ async def salvar_cadastro(request: Request):
     data_consentimento = datetime.now().strftime("%Y-%m-%d %H:%M:%S") if consentimento_lgpd else None
     
     conexao = pegar_conexao()
+    conexao.execute("BEGIN IMMEDIATE")
     cursor = conexao.cursor()
-    if turma:
-        cursor.execute("INSERT OR IGNORE INTO turmas (nome, descricao) VALUES (?, ?)", (turma, "Turma Cadastrada"))
+    turma_db = cursor.execute("SELECT limite_alunos FROM turmas WHERE nome = ?", (turma,)).fetchone()
+    if not turma_db:
+        conexao.rollback()
+        conexao.close()
+        raise HTTPException(status_code=422, detail="Selecione uma turma cadastrada")
+    matriculados = cursor.execute("SELECT COUNT(*) FROM alunos WHERE turma = ?", (turma,)).fetchone()[0]
+    if turma_db["limite_alunos"] is not None and matriculados >= turma_db["limite_alunos"]:
+        conexao.rollback()
+        conexao.close()
+        return RedirectResponse(url="/cadastrar?erro=turma_lotada", status_code=303)
 
     cursor.execute('''
         INSERT INTO alunos (
@@ -584,7 +718,8 @@ async def gerar_ficha(request: Request, aluno_id: int):
     conexao = pegar_conexao()
     aluno = conexao.execute('SELECT * FROM alunos WHERE id = ?', (aluno_id,)).fetchone()
     conexao.close()
-    
+    if not aluno:
+        raise HTTPException(status_code=404, detail="Aluno não encontrado")
     return templates.TemplateResponse(request=request, name="ficha.html", context={"aluno": aluno})
 
 @app.get("/usuarios/novo", response_class=HTMLResponse)
@@ -634,6 +769,9 @@ async def alterar_senha_usuario(request: Request):
     usuario_id = formulario.get('usuario_id')
     nova_senha = (formulario.get('nova_senha') or '').strip()
 
+    if nova_senha and len(nova_senha) < 12 and not ALLOW_WEAK_DEV_PASSWORDS:
+        raise HTTPException(status_code=422, detail="A nova senha deve ter ao menos 12 caracteres")
+
     if usuario_id and nova_senha:
         conexao = pegar_conexao()
         alvo = conexao.execute("SELECT id, login, perfil FROM usuarios WHERE id = ?", (int(usuario_id),)).fetchone()
@@ -659,9 +797,11 @@ async def salvar_usuario(request: Request):
         return RedirectResponse(url="/", status_code=303)
         
     formulario = await request.form()
-    login = formulario.get('login')
-    senha = formulario.get('senha')
+    login = (formulario.get('login') or '').strip()
+    senha = formulario.get('senha') or ''
     perfil = formulario.get('perfil')
+    if not login or len(login) > 80 or (len(senha) < 12 and not ALLOW_WEAK_DEV_PASSWORDS) or perfil not in {"professor", "coordenacao"}:
+        raise HTTPException(status_code=422, detail="Informe login, senha válida para o ambiente e perfil válido")
     if hasattr(formulario, 'getlist'):
         turmas_selecionadas = formulario.getlist('turmas')
     else:
@@ -687,9 +827,13 @@ async def salvar_usuario(request: Request):
         conexao.commit()
         detalhe_turmas = f", Turmas: {', '.join(turmas_selecionadas)}" if (perfil == 'professor' and turmas_selecionadas) else ""
         registrar_auditoria(usuario['login'], "CRIACAO_USUARIO", f"Novo usuário criado: {login} (Perfil: {perfil}{detalhe_turmas})")
+    except sqlite3.IntegrityError:
+        conexao.rollback()
+        return RedirectResponse(url="/usuarios/novo?sucesso=login_existente", status_code=303)
     except Exception:
-        # Se o utilizador já existir (o login é UNIQUE), o sistema ignora o erro para não quebrar
-        pass 
+        conexao.rollback()
+        logger.exception("Falha ao criar usuário")
+        raise HTTPException(status_code=500, detail="Não foi possível criar o usuário")
     finally:
         conexao.close()
         
@@ -720,14 +864,14 @@ async def listar_alunos(request: Request):
 
 # --- ROTAS DE GESTÃO DE ALUNOS (EDIÇÃO, EXCLUSÃO E HISTÓRICO) ---
 @app.get("/alunos/editar/{aluno_id}", response_class=HTMLResponse)
-async def tela_editar_aluno(request: Request, aluno_id: int):
+async def tela_editar_aluno(request: Request, aluno_id: int, erro: str = None):
     usuario = obter_usuario_atual(request)
     if not usuario or usuario['perfil'] != 'coordenacao':
         return RedirectResponse(url="/", status_code=303)
         
     conexao = pegar_conexao()
     aluno = conexao.execute('SELECT * FROM alunos WHERE id = ?', (aluno_id,)).fetchone()
-    turmas_disponiveis = obter_todas_turmas(conexao)
+    turmas_disponiveis = obter_turmas_para_matricula(conexao)
     conexao.close()
     
     if not aluno:
@@ -736,7 +880,7 @@ async def tela_editar_aluno(request: Request, aluno_id: int):
     return templates.TemplateResponse(
         request=request,
         name="editar_aluno.html",
-        context={"aluno": aluno, "turmas_disponiveis": turmas_disponiveis}
+        context={"aluno": aluno, "turmas_disponiveis": turmas_disponiveis, "erro": erro}
     )
 
 @app.post("/alunos/editar/{aluno_id}")
@@ -765,8 +909,23 @@ async def salvar_edicao_aluno(request: Request, aluno_id: int):
     data_consentimento = datetime.now().strftime("%Y-%m-%d %H:%M:%S") if consentimento_lgpd else None
     
     conexao = pegar_conexao()
-    if turma:
-        conexao.execute("INSERT OR IGNORE INTO turmas (nome, descricao) VALUES (?, ?)", (turma, "Turma Cadastrada"))
+    conexao.execute("BEGIN IMMEDIATE")
+    aluno_atual = conexao.execute("SELECT turma FROM alunos WHERE id = ?", (aluno_id,)).fetchone()
+    if not aluno_atual:
+        conexao.rollback()
+        conexao.close()
+        raise HTTPException(status_code=404, detail="Aluno não encontrado")
+    turma_db = conexao.execute("SELECT limite_alunos FROM turmas WHERE nome = ?", (turma,)).fetchone()
+    if not turma_db:
+        conexao.rollback()
+        conexao.close()
+        return RedirectResponse(url=f"/alunos/editar/{aluno_id}?erro=turma_invalida", status_code=303)
+    if turma != aluno_atual['turma'] and turma_db['limite_alunos'] is not None:
+        matriculados = conexao.execute("SELECT COUNT(*) FROM alunos WHERE turma = ?", (turma,)).fetchone()[0]
+        if matriculados >= turma_db['limite_alunos']:
+            conexao.rollback()
+            conexao.close()
+            return RedirectResponse(url=f"/alunos/editar/{aluno_id}?erro=turma_lotada", status_code=303)
 
     conexao.execute('''
         UPDATE alunos SET
@@ -775,7 +934,7 @@ async def salvar_edicao_aluno(request: Request, aluno_id: int):
             contato_emergencia = ?, telefone_emergencia = ?, condicao_medica = ?,
             nome_responsavel = ?, autorizacao_pais = ?,
             consentimento_lgpd = ?,
-            data_consentimento = CASE WHEN ? = 1 AND (data_consentimento IS NULL OR data_consentimento = '') THEN ? ELSE data_consentimento END
+            data_consentimento = CASE WHEN ? = 1 THEN COALESCE(NULLIF(data_consentimento, ''), ?) ELSE NULL END
         WHERE id = ?
     ''', (nome, data_nascimento, turma, telefone, cep, rua, numero, bairro, cidade, referencia,
           contato_emergencia, telefone_emergencia, condicao_medica, nome_responsavel, autorizacao,
@@ -879,7 +1038,7 @@ async def tela_turmas(request: Request, sucesso: str = None, erro: str = None):
     
     # Busca dados das turmas cadastradas
     todas_turmas_db = conexao.execute('''
-        SELECT t.id, t.nome, t.descricao,
+        SELECT t.id, t.nome, t.descricao, t.limite_alunos,
                (SELECT COUNT(*) FROM alunos a WHERE a.turma = t.nome) as total_alunos
         FROM turmas t
         ORDER BY t.nome ASC
@@ -901,6 +1060,9 @@ async def tela_turmas(request: Request, sucesso: str = None, erro: str = None):
             "nome": t['nome'],
             "descricao": t['descricao'] or "Curso / Turma Ativa",
             "total_alunos": t['total_alunos'],
+            "limite_alunos": t['limite_alunos'],
+            "ocupacao_percentual": min(100, round(t['total_alunos'] * 100 / t['limite_alunos'])) if t['limite_alunos'] else 0,
+            "lotada": t['limite_alunos'] is not None and t['total_alunos'] >= t['limite_alunos'],
             "professores": [p['login'] for p in profs_t],
             "professores_ids": [p['id'] for p in profs_t]
         })
@@ -938,6 +1100,13 @@ async def criar_turma(request: Request):
     formulario = await request.form()
     nome = (formulario.get('nome') or '').strip()
     descricao = (formulario.get('descricao') or '').strip()
+    limite_bruto = (formulario.get('limite_alunos') or '').strip()
+    try:
+        limite_alunos = int(limite_bruto) if limite_bruto else None
+        if limite_alunos is not None and limite_alunos < 1:
+            raise ValueError
+    except ValueError:
+        return RedirectResponse(url="/turmas?erro=limite_invalido", status_code=303)
     if hasattr(formulario, 'getlist'):
         professores_ids = formulario.getlist('professores')
     else:
@@ -947,7 +1116,11 @@ async def criar_turma(request: Request):
     if nome:
         conexao = pegar_conexao()
         cursor = conexao.cursor()
-        cursor.execute("INSERT OR IGNORE INTO turmas (nome, descricao) VALUES (?, ?)", (nome, descricao))
+        duplicada = cursor.execute("SELECT 1 FROM turmas WHERE nome = ?", (nome,)).fetchone()
+        if duplicada:
+            conexao.close()
+            return RedirectResponse(url="/turmas?erro=nome_duplicado", status_code=303)
+        cursor.execute("INSERT INTO turmas (nome, descricao, limite_alunos) VALUES (?, ?, ?)", (nome, descricao, limite_alunos))
         for pid in professores_ids:
             try:
                 cursor.execute(
@@ -1009,6 +1182,13 @@ async def editar_turma(request: Request, turma_id: int):
     formulario = await request.form()
     novo_nome = (formulario.get('nome') or '').strip()
     nova_descricao = (formulario.get('descricao') or '').strip()
+    limite_bruto = (formulario.get('limite_alunos') or '').strip()
+    try:
+        novo_limite = int(limite_bruto) if limite_bruto else None
+        if novo_limite is not None and novo_limite < 1:
+            raise ValueError
+    except ValueError:
+        return RedirectResponse(url="/turmas?erro=limite_invalido", status_code=303)
     if hasattr(formulario, 'getlist'):
         professores_ids = formulario.getlist('professores')
     else:
@@ -1020,23 +1200,31 @@ async def editar_turma(request: Request, turma_id: int):
         
     conexao = pegar_conexao()
     cursor = conexao.cursor()
-    turma_atual = cursor.execute("SELECT id, nome, descricao FROM turmas WHERE id = ?", (turma_id,)).fetchone()
+    cursor.execute("BEGIN IMMEDIATE")
+    turma_atual = cursor.execute("SELECT id, nome, descricao, limite_alunos FROM turmas WHERE id = ?", (turma_id,)).fetchone()
     if not turma_atual:
+        conexao.rollback()
         conexao.close()
         return RedirectResponse(url="/turmas", status_code=303)
         
     nome_antigo = turma_atual['nome']
+    matriculados_turma = cursor.execute("SELECT COUNT(*) FROM alunos WHERE turma = ?", (nome_antigo,)).fetchone()[0]
+    if novo_limite is not None and novo_limite < matriculados_turma:
+        conexao.rollback()
+        conexao.close()
+        return RedirectResponse(url="/turmas?erro=limite_menor_que_ocupacao", status_code=303)
     
     # Se o nome mudou, verifica se já não existe outra turma com o novo nome
     if novo_nome != nome_antigo:
         conflito = cursor.execute("SELECT id FROM turmas WHERE nome = ? AND id != ?", (novo_nome, turma_id)).fetchone()
         if conflito:
+            conexao.rollback()
             conexao.close()
             return RedirectResponse(url="/turmas?erro=nome_duplicado", status_code=303)
             
     try:
         # 1. Atualiza registro na tabela turmas
-        cursor.execute("UPDATE turmas SET nome = ?, descricao = ? WHERE id = ?", (novo_nome, nova_descricao, turma_id))
+        cursor.execute("UPDATE turmas SET nome = ?, descricao = ?, limite_alunos = ? WHERE id = ?", (novo_nome, nova_descricao, novo_limite, turma_id))
         
         # 2. Se o nome mudou, cascateia a alteração em alunos e professor_turmas
         if novo_nome != nome_antigo:
