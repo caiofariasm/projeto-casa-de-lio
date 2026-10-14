@@ -6,6 +6,7 @@ import sqlite3
 from datetime import date, datetime, timedelta, timezone
 import os
 import logging
+import secrets
 import uuid
 import re
 import csv
@@ -24,15 +25,21 @@ load_dotenv(BASE_DIR / ".env")
 DB_PATH = BASE_DIR / "banco.db"
 UPLOADS_DIR = BASE_DIR / "uploads"
 
-SECRET_KEY = os.getenv("SECRET_KEY", "")
-if len(SECRET_KEY) < 32:
-    raise RuntimeError("Configure SECRET_KEY com pelo menos 32 caracteres aleatórios.")
+logger = logging.getLogger(__name__)
+SECRET_KEY = os.getenv("SECRET_KEY", "").strip()
+if not SECRET_KEY:
+    SECRET_KEY = secrets.token_urlsafe(48)
+    logger.warning(
+        "SECRET_KEY não configurada; usando uma chave temporária. "
+        "Sessões deixarão de valer após reinícios e podem falhar entre instâncias."
+    )
+elif len(SECRET_KEY) < 32:
+    raise RuntimeError("SECRET_KEY configurada deve ter pelo menos 32 caracteres aleatórios.")
 ALGORITHM = "HS256"
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development").strip().lower()
 ALLOW_WEAK_DEV_PASSWORDS = ENVIRONMENT == "development"
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "480"))
 MAX_UPLOAD_BYTES = 25 * 1024 * 1024
-logger = logging.getLogger(__name__)
 
 app = FastAPI()
 COOKIE_SECURE = os.getenv("COOKIE_SECURE", "false").lower() in {"1", "true", "yes"}
