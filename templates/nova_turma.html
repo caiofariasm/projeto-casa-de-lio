@@ -1,0 +1,71 @@
+{% extends 'base.html' %}
+{% block conteudo %}
+{% if erro == 'nome_duplicado' %}
+<div class="alert alert-danger alert-dismissible fade show rounded-4 shadow-sm border-0 mb-4 px-4 py-3" role="alert">
+    <strong>Erro:</strong> Já existe uma turma cadastrada com esse nome. Por favor, escolha um nome diferente.
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fechar"></button>
+</div>
+{% elif erro == 'limite_invalido' %}
+<div class="alert alert-danger alert-dismissible fade show rounded-4 shadow-sm border-0 mb-4 px-4 py-3" role="alert">
+    Informe um limite inteiro maior que zero ou deixe o campo vazio para não limitar a turma.
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fechar"></button>
+</div>
+{% endif %}
+
+<div class="row justify-content-center mt-4 mb-5">
+    <div class="col-lg-7 col-md-9">
+        <div class="card shadow-lg border-0" style="border-radius: 1.5rem;">
+            <div class="card-header bg-primary text-white pt-4 pb-3 px-4" style="border-top-left-radius: 1.5rem; border-top-right-radius: 1.5rem;">
+                <h4 class="text-center fw-bold mb-0">Criação de Novas Turmas</h4>
+                <p class="text-center text-white-50 mb-0">Cadastre um novo curso ou oficina e defina os professores responsáveis</p>
+            </div>
+            <div class="card-body p-4 p-md-5">
+                <form action="/turmas/nova" method="POST">
+                    <div class="mb-4">
+                        <label class="form-label fw-semibold text-muted">Nome do Curso / Turma</label>
+                        <input type="text" name="nome" class="form-control bg-light border-0" placeholder="Ex: Violão - Manhã, Informática - Tarde" required>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label fw-semibold text-muted">Descrição ou Horário (Opcional)</label>
+                        <input type="text" name="descricao" class="form-control bg-light border-0" placeholder="Ex: Segundas e Quartas, 14h às 16h">
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label fw-semibold text-muted" for="limite_nova_turma">Limite de alunos (opcional)</label>
+                        <input type="number" min="1" step="1" id="limite_nova_turma" name="limite_alunos" class="form-control bg-light border-0" placeholder="Deixe vazio para não limitar">
+                    </div>
+
+                    {% if professores %}
+                    <div class="mb-4">
+                        <label class="form-label fw-semibold text-muted d-block">Vincular Professor(es) a esta Turma (Opcional):</label>
+                        <div class="p-3 bg-light rounded-3 border" style="max-height: 200px; overflow-y: auto;">
+                            {% for prof in professores %}
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" name="professores" value="{{ prof['id'] }}" id="novo_prof_{{ prof['id'] }}">
+                                <label class="form-check-label fw-semibold" for="novo_prof_{{ prof['id'] }}">
+                                    {{ prof['login'] }}
+                                </label>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <small class="text-muted d-block mt-1">
+                            Você também pode gerenciar as permissões de todos os professores na tela <a href="/usuarios/novo" class="text-primary fw-semibold">Professores & Permissões</a>.
+                        </small>
+                    </div>
+                    {% endif %}
+
+                    <div class="d-grid gap-2 mt-4">
+                        <button type="submit" class="btn btn-primary btn-lg rounded-pill fw-bold py-2 shadow-sm">
+                            Salvar Nova Turma
+                        </button>
+                        <a href="/turmas" class="btn btn-light rounded-pill fw-bold text-muted">
+                            Voltar ao Painel de Controle de Turmas
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

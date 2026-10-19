@@ -1098,6 +1098,26 @@ async def tela_turmas(request: Request, sucesso: str = None, erro: str = None):
         }
     )
 
+@app.get("/turmas/nova", response_class=HTMLResponse)
+async def tela_nova_turma(request: Request, erro: str = None):
+    usuario = obter_usuario_atual(request)
+    if not usuario or usuario['perfil'] != 'coordenacao':
+        return RedirectResponse(url="/", status_code=303)
+        
+    conexao = pegar_conexao()
+    profs_db = conexao.execute("SELECT id, login FROM usuarios WHERE perfil = 'professor' ORDER BY login ASC").fetchall()
+    professores_sistema = [{"id": p['id'], "login": p['login']} for p in profs_db]
+    conexao.close()
+    return templates.TemplateResponse(
+        request=request,
+        name="nova_turma.html",
+        context={
+            "professores": professores_sistema,
+            "usuario_atual": usuario,
+            "erro": erro
+        }
+    )
+
 @app.post("/turmas/nova")
 async def criar_turma(request: Request):
     usuario = obter_usuario_atual(request)
@@ -1140,7 +1160,7 @@ async def criar_turma(request: Request):
         conexao.close()
         registrar_auditoria(usuario['login'], "CRIACAO_TURMA", f"Nova turma/curso criada: {nome}")
         
-    return RedirectResponse(url="/turmas", status_code=303)
+    return RedirectResponse(url="/turmas?sucesso=criada", status_code=303)
 
 @app.post("/turmas/vincular")
 async def vincular_professor_turmas(request: Request):
@@ -1150,7 +1170,7 @@ async def vincular_professor_turmas(request: Request):
         
     formulario = await request.form()
     usuario_id = formulario.get('usuario_id')
-    origem = formulario.get('origem', 'turmas')
+    origem = formulario.get('origem', 'usuarios')
     if hasattr(formulario, 'getlist'):
         turmas_selecionadas = formulario.getlist('turmas')
     else:
@@ -1177,7 +1197,7 @@ async def vincular_professor_turmas(request: Request):
         )
         
     if origem == 'usuarios':
-        return RedirectResponse(url="/usuarios/novo", status_code=303)
+        return RedirectResponse(url="/usuarios/novo?sucesso=turmas", status_code=303)
     return RedirectResponse(url="/turmas", status_code=303)
 
 @app.post("/turmas/editar/{turma_id}")

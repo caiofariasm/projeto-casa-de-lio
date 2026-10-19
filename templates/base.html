@@ -125,14 +125,35 @@
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav ms-auto align-items-center">
-                    <li class="nav-item"><a class="nav-link fw-semibold" href="/turmas">Turmas</a></li>
+                    {% if request.session.get('perfil') == 'coordenacao' %}
+                        <li class="nav-item dropdown">
+                            <a class="nav-link fw-semibold dropdown-toggle" href="#" id="menuTurmas" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                Turmas
+                            </a>
+                            <ul class="dropdown-menu shadow border-0 mt-2" aria-labelledby="menuTurmas">
+                                <li>
+                                    <a class="dropdown-item text-primary fw-semibold" href="/turmas">
+                                        Painel de Controle de Turmas
+                                    </a>
+                                </li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li>
+                                    <a class="dropdown-item text-primary fw-semibold" href="/turmas/nova">
+                                        Criação de Novas Turmas
+                                    </a>
+                                </li>
+                            </ul>
+                        </li>
+                    {% else %}
+                        <li class="nav-item"><a class="nav-link fw-semibold" href="/turmas">Turmas</a></li>
+                    {% endif %}
                     <li class="nav-item"><a class="nav-link fw-semibold" href="/">Chamada</a></li>
                     
                     {% if request.session.get('perfil') == 'coordenacao' %}
                         <li class="nav-item"><a class="nav-link fw-semibold" href="/dashboard">Dashboard</a></li>
                         <li class="nav-item"><a class="nav-link fw-semibold" href="/alunos">Alunos</a></li>
                         <li class="nav-item"><a class="nav-link fw-semibold" href="/cadastrar">Cadastrar</a></li>
-                        <li class="nav-item"><a class="nav-link fw-semibold" href="/auditoria">Auditoria LGPD</a></li>
+                        <li class="nav-item"><a class="nav-link fw-semibold" href="/usuarios/novo">Professores & Permissões</a></li>
                     {% endif %}
                     
                     <!-- Menu Suspenso (Dropdown) com Trava de Segurança -->
@@ -143,8 +164,8 @@
                         <ul class="dropdown-menu dropdown-menu-end shadow border-0 mt-2" aria-labelledby="menuPerfil">
                             {% if request.session.get('perfil') == 'coordenacao' %}
                                 <li>
-                                    <a class="dropdown-item text-primary fw-bold" href="/usuarios/novo">
-                                         Criar Novo Acesso
+                                    <a class="dropdown-item text-primary fw-bold" href="/auditoria">
+                                        Auditoria LGPD
                                     </a>
                                 </li>
                                 <li><hr class="dropdown-divider"></li>

@@ -7,17 +7,39 @@
     .professor-lista { max-height: 11rem; overflow-y: auto; }
 </style>
 {% if sucesso == 'senha' %}
-<div class="alert alert-success alert-dismissible fade show rounded-4 shadow-sm border-0 mt-3 mb-2 px-4 py-3" role="alert">
-    <strong> Senha atualizada com sucesso!</strong> O usuário já pode acessar o sistema utilizando a nova senha.
+<div class="alert alert-success alert-dismissible fade show rounded-4 shadow-sm border-0 mt-3 mb-3 px-4 py-3" role="alert">
+    <strong>Senha atualizada com sucesso!</strong> O usuário já pode acessar o sistema utilizando a nova senha.
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fechar"></button>
+</div>
+{% elif sucesso == 'turmas' %}
+<div class="alert alert-success alert-dismissible fade show rounded-4 shadow-sm border-0 mt-3 mb-3 px-4 py-3" role="alert">
+    <strong>Permissões atualizadas com sucesso!</strong> O acesso às turmas do professor foi salvo.
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fechar"></button>
+</div>
+{% elif sucesso == 'login_existente' %}
+<div class="alert alert-danger alert-dismissible fade show rounded-4 shadow-sm border-0 mt-3 mb-3 px-4 py-3" role="alert">
+    <strong>Erro:</strong> Este nome de usuário (login) já está cadastrado no sistema.
     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fechar"></button>
 </div>
 {% endif %}
 
-<div class="row justify-content-center mt-4 mb-5">
+<div class="row mb-4 align-items-center">
+    <div class="col-md-8">
+        <h2 class="text-primary fw-bold mb-1">Professores, Acessos & Permissões</h2>
+        <p class="text-muted mb-0">Cadastre novos professores, gerencie o painel de permissões por turma e redefina senhas da equipe</p>
+    </div>
+    <div class="col-md-4 text-md-end mt-3 mt-md-0">
+        <a href="/turmas" class="btn btn-outline-primary rounded-pill px-4 fw-semibold">
+            Painel de Controle de Turmas
+        </a>
+    </div>
+</div>
+
+<div class="row justify-content-center mb-5">
     <div class="col-lg-6 mb-4">
         <div class="card shadow-lg border-0" style="border-radius: 1.5rem;">
             <div class="card-header bg-primary text-white pt-4 pb-3" style="border-top-left-radius: 1.5rem; border-top-right-radius: 1.5rem;">
-                <h4 class="text-center fw-bold mb-0">Criar Novo Acesso</h4>
+                <h4 class="text-center fw-bold mb-0">Criação de Professores / Novo Acesso</h4>
                 <p class="text-center text-white-50 mb-0">Área exclusiva da Coordenação</p>
             </div>
             
@@ -45,7 +67,7 @@
                     <!-- SELEÇÃO DE TURMAS DO PROFESSOR -->
                     <div id="blocoTurmasProfessor" class="mb-4 p-3 bg-light rounded-3 border">
                         <label class="form-label fw-bold text-primary mb-2 d-block">
-                             Turmas que este(a) Professor(a) terá acesso:
+                            Turmas que este(a) Professor(a) terá acesso:
                         </label>
                         {% if turmas_disponiveis %}
                             <div class="turma-searchable">
@@ -64,7 +86,7 @@
                                 </div>
                             </div>
                         {% else %}
-                            <p class="text-muted small mb-0">Nenhuma turma cadastrada ainda. <a href="/turmas">Criar turmas</a></p>
+                            <p class="text-muted small mb-0">Nenhuma turma cadastrada ainda. <a href="/turmas/nova">Criar turmas</a></p>
                         {% endif %}
                         <small class="text-muted d-block mt-2">
                             O professor verá apenas os alunos das turmas selecionadas acima.
@@ -76,7 +98,7 @@
                             Criar Conta
                         </button>
                         <a href="/turmas" class="btn btn-outline-primary rounded-pill fw-bold mt-2">
-                            Gerenciar Turmas & Cursos
+                            Painel de Controle de Turmas
                         </a>
                         <a href="/dashboard" class="btn btn-light rounded-pill fw-bold text-muted">
                             Cancelar e Voltar
@@ -88,10 +110,68 @@
     </div>
 
     <div class="col-lg-6 mb-4 d-flex flex-column gap-4">
+        <!-- PAINEL DE PERMISSÕES DE TURMAS POR PROFESSOR -->
+        <div class="card shadow-sm border-0" style="border-radius: 1.5rem;">
+            <div class="card-header bg-white border-bottom pt-4 pb-3 px-4" style="border-top-left-radius: 1.5rem; border-top-right-radius: 1.5rem;">
+                <h5 class="fw-bold text-primary mb-0">Painel de Permissões de Turmas por Professor</h5>
+                <small class="text-muted">Selecione o professor abaixo para marcar ou desmarcar as turmas que ele leciona</small>
+            </div>
+            <div class="card-body p-4">
+                {% if professores %}
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold text-muted" for="buscarProfessorVinculo">Selecione os professores</label>
+                        <input type="search" id="buscarProfessorVinculo" class="form-control form-control-sm mb-2" placeholder="Pesquisar professor..." autocomplete="off">
+                        <div class="list-group professor-lista" id="listaSelecaoProfessores">
+                            {% for prof in professores %}
+                            <label class="list-group-item d-flex align-items-center gap-2" data-professor-item>
+                                <input class="form-check-input mt-0" type="checkbox" value="{{ prof['id'] }}" data-professor-selector>
+                                <span class="small fw-semibold">{{ prof['login'] }}</span>
+                            </label>
+                            {% endfor %}
+                            <div class="list-group-item text-muted small d-none" data-professor-empty>Nenhum professor encontrado.</div>
+                        </div>
+                        <small class="text-muted d-block mt-2" id="resumoProfessoresSelecionados" aria-live="polite">Nenhum professor selecionado.</small>
+                    </div>
+                    {% for prof in professores %}
+                    <form action="/turmas/vincular" method="POST" class="p-3 mb-3 bg-light rounded-3 border d-none" data-professor-panel data-professor-id="{{ prof['id'] }}">
+                        <input type="hidden" name="usuario_id" value="{{ prof['id'] }}">
+                        <input type="hidden" name="origem" value="usuarios">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="fw-bold text-primary">Professor(a): {{ prof['login'] }}</span>
+                            <button type="submit" class="btn btn-sm btn-primary rounded-pill px-3 fw-bold">
+                                Salvar Acesso
+                            </button>
+                        </div>
+                        <div class="turma-searchable mt-2">
+                            <label class="visually-hidden" for="buscarTurmaProfessor{{ prof['id'] }}">Pesquisar turma para {{ prof['login'] }}</label>
+                            <input type="search" id="buscarTurmaProfessor{{ prof['id'] }}" class="form-control form-control-sm mb-2" placeholder="Pesquisar turma..." autocomplete="off">
+                            <div class="list-group turma-lista">
+                            {% for t in turmas_disponiveis %}
+                            <label class="list-group-item d-flex align-items-center gap-2" data-turma-item>
+                                <input class="form-check-input mt-0" type="checkbox" name="turmas" value="{{ t }}" id="prof_{{ prof['id'] }}_{{ loop.index }}"
+                                       {% if t in prof['turmas'] %}checked{% endif %}>
+                                <span class="small fw-semibold">
+                                    {{ t }}
+                                </span>
+                            </label>
+                            {% endfor %}
+                            <div class="list-group-item text-muted small d-none" data-turma-empty>Nenhuma turma encontrada.</div>
+                            </div>
+                        </div>
+                    </form>
+                    {% endfor %}
+                {% else %}
+                    <div class="text-center text-muted py-4">
+                        Nenhum usuário com perfil de professor cadastrado ainda. Utilize o formulário ao lado para criar o primeiro professor.
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
         <!-- CARD DE ALTERAÇÃO DE SENHA DOS USUÁRIOS -->
         <div class="card shadow-sm border-0" style="border-radius: 1.5rem;">
             <div class="card-header bg-white border-bottom pt-4 pb-3 px-4" style="border-top-left-radius: 1.5rem; border-top-right-radius: 1.5rem;">
-                <h5 class="fw-bold text-primary mb-0"> Trocar Senha de Usuário</h5>
+                <h5 class="fw-bold text-primary mb-0">Trocar Senha de Usuário</h5>
                 <small class="text-muted">Redefina a senha de qualquer professor ou membro da coordenação</small>
             </div>
             <div class="card-body p-4">
@@ -102,7 +182,7 @@
                             <option value="" disabled selected>Escolha o usuário...</option>
                             {% for u in usuarios_sistema %}
                             <option value="{{ u['id'] }}">
-                                {% if u['perfil'] == 'coordenacao' %} {{ u['login'] }} (Coordenação){% else %} {{ u['login'] }} (Professor){% endif %}
+                                {% if u['perfil'] == 'coordenacao' %}{{ u['login'] }} (Coordenação){% else %}{{ u['login'] }} (Professor){% endif %}
                             </option>
                             {% endfor %}
                         </select>
@@ -112,6 +192,7 @@
                         <div class="input-group">
                             <input type="password" name="nova_senha" id="inputNovaSenha" class="form-control bg-light border-0" placeholder="Digite a nova senha..." required>
                             <button type="button" class="btn btn-outline-secondary border-0 bg-light" onclick="alternarVisibilidadeSenha()">
+                                Mostrar
                             </button>
                         </div>
                     </div>
@@ -123,60 +204,6 @@
                 </form>
             </div>
         </div>
-
-        {% if professores %}
-        <!-- CARD DE VÍNCULO DE TURMAS DOS PROFESSORES -->
-        <div class="card shadow-sm border-0" style="border-radius: 1.5rem;">
-            <div class="card-header bg-white border-bottom pt-4 pb-3 px-4" style="border-top-left-radius: 1.5rem; border-top-right-radius: 1.5rem;">
-                <h5 class="fw-bold text-primary mb-0"> Professores Cadastrados & Turmas</h5>
-                <small class="text-muted">Marque ou desmarque as turmas que cada professor leciona</small>
-            </div>
-            <div class="card-body p-4">
-                <div class="mb-3">
-                    <label class="form-label fw-semibold text-muted" for="buscarProfessorVinculo">Selecione os professores</label>
-                    <input type="search" id="buscarProfessorVinculo" class="form-control form-control-sm mb-2" placeholder="Pesquisar professor..." autocomplete="off">
-                    <div class="list-group professor-lista" id="listaSelecaoProfessores">
-                        {% for prof in professores %}
-                        <label class="list-group-item d-flex align-items-center gap-2" data-professor-item>
-                            <input class="form-check-input mt-0" type="checkbox" value="{{ prof['id'] }}" data-professor-selector>
-                            <span class="small fw-semibold">{{ prof['login'] }}</span>
-                        </label>
-                        {% endfor %}
-                        <div class="list-group-item text-muted small d-none" data-professor-empty>Nenhum professor encontrado.</div>
-                    </div>
-                    <small class="text-muted d-block mt-2" id="resumoProfessoresSelecionados" aria-live="polite">Nenhum professor selecionado.</small>
-                </div>
-                {% for prof in professores %}
-                <form action="/turmas/vincular" method="POST" class="p-3 mb-3 bg-light rounded-3 border d-none" data-professor-panel data-professor-id="{{ prof['id'] }}">
-                    <input type="hidden" name="usuario_id" value="{{ prof['id'] }}">
-                    <input type="hidden" name="origem" value="usuarios">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <span class="fw-bold text-primary"> {{ prof['login'] }}</span>
-                        <button type="submit" class="btn btn-sm btn-primary rounded-pill px-3 fw-bold">
-                            Atualizar Turmas
-                        </button>
-                    </div>
-                    <div class="turma-searchable mt-2">
-                        <label class="visually-hidden" for="buscarTurmaProfessor{{ prof['id'] }}">Pesquisar turma para {{ prof['login'] }}</label>
-                        <input type="search" id="buscarTurmaProfessor{{ prof['id'] }}" class="form-control form-control-sm mb-2" placeholder="Pesquisar turma..." autocomplete="off">
-                        <div class="list-group turma-lista">
-                        {% for t in turmas_disponiveis %}
-                        <label class="list-group-item d-flex align-items-center gap-2" data-turma-item>
-                            <input class="form-check-input mt-0" type="checkbox" name="turmas" value="{{ t }}" id="prof_{{ prof['id'] }}_{{ loop.index }}"
-                                   {% if t in prof['turmas'] %}checked{% endif %}>
-                            <span class="small fw-semibold">
-                                {{ t }}
-                            </span>
-                        </label>
-                        {% endfor %}
-                        <div class="list-group-item text-muted small d-none" data-turma-empty>Nenhuma turma encontrada.</div>
-                        </div>
-                    </div>
-                </form>
-                {% endfor %}
-            </div>
-        </div>
-        {% endif %}
     </div>
 </div>
 

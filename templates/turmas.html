@@ -2,12 +2,17 @@
 {% block conteudo %}
 {% if sucesso == 'editada' %}
 <div class="alert alert-success alert-dismissible fade show rounded-4 shadow-sm border-0 mb-4 px-4 py-3" role="alert">
-    <strong> Turma atualizada com sucesso!</strong> As informações e vínculos da turma foram salvos.
+    <strong>Turma atualizada com sucesso!</strong> As informações e vínculos da turma foram salvos.
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fechar"></button>
+</div>
+{% elif sucesso == 'criada' %}
+<div class="alert alert-success alert-dismissible fade show rounded-4 shadow-sm border-0 mb-4 px-4 py-3" role="alert">
+    <strong>Nova turma criada com sucesso!</strong> Ela já está disponível no painel abaixo.
     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fechar"></button>
 </div>
 {% elif erro == 'nome_duplicado' %}
 <div class="alert alert-danger alert-dismissible fade show rounded-4 shadow-sm border-0 mb-4 px-4 py-3" role="alert">
-    <strong> Erro:</strong> Já existe outra turma com esse nome. Por favor, escolha um nome diferente.
+    <strong>Erro:</strong> Já existe outra turma com esse nome. Por favor, escolha um nome diferente.
     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fechar"></button>
 </div>
 {% elif erro == 'limite_invalido' %}
@@ -17,19 +22,22 @@
 {% endif %}
 
 <div class="row mb-4 align-items-center">
-    <div class="col-md-8">
+    <div class="col-md-7">
         {% if request.session.get('perfil') == 'coordenacao' %}
-            <h2 class="text-primary fw-bold mb-1">Gestão de Turmas & Cursos</h2>
-            <p class="text-muted mb-0">Cadastre novos cursos, vincule os professores responsáveis e acesse a chamada de cada turma</p>
+            <h2 class="text-primary fw-bold mb-1">Painel de Controle de Turmas</h2>
+            <p class="text-muted mb-0">Gerencie as turmas ativas, edite informações e acesse a chamada de cada curso</p>
         {% else %}
             <h2 class="text-primary fw-bold mb-1">Minhas Turmas</h2>
             <p class="text-muted mb-0">Selecione uma das suas turmas abaixo para realizar a chamada do dia</p>
         {% endif %}
     </div>
-    <div class="col-md-4 text-md-end mt-3 mt-md-0">
+    <div class="col-md-5 text-md-end mt-3 mt-md-0 d-flex flex-wrap justify-content-md-end gap-2">
         {% if request.session.get('perfil') == 'coordenacao' %}
+            <a href="/turmas/nova" class="btn btn-primary rounded-pill px-4 fw-semibold shadow-sm">
+                + Nova Turma
+            </a>
             <a href="/usuarios/novo" class="btn btn-outline-primary rounded-pill px-4 fw-semibold">
-                 Novo Professor / Acesso
+                Professores & Permissões
             </a>
         {% endif %}
     </div>
@@ -161,98 +169,4 @@
         </div>
     {% endif %}
 </div>
-
-{% if request.session.get('perfil') == 'coordenacao' %}
-<hr class="my-4">
-
-<div class="row g-4 mb-5">
-    <!-- FORMULÁRIO DE NOVA TURMA / CURSO -->
-    <div class="col-lg-5">
-        <div class="card shadow-sm border-0 h-100" style="border-radius: 1.2rem;">
-            <div class="card-header bg-primary text-white py-3 px-4" style="border-top-left-radius: 1.2rem; border-top-right-radius: 1.2rem;">
-                <h5 class="fw-bold mb-0">+ Criar Nova Turma / Curso</h5>
-            </div>
-            <div class="card-body p-4">
-                <form action="/turmas/nova" method="POST">
-                    <div class="mb-3">
-                        <label class="form-label fw-semibold text-muted" for="limite_nova_turma">Limite de alunos (opcional)</label>
-                        <input type="number" min="1" step="1" id="limite_nova_turma" name="limite_alunos" class="form-control" placeholder="Deixe vazio para não limitar">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label fw-semibold text-muted">Nome do Curso / Turma</label>
-                        <input type="text" name="nome" class="form-control bg-light border-0" placeholder="Ex: Violão - Manhã, Informática - Tarde" required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label fw-semibold text-muted">Descrição ou Horário (Opcional)</label>
-                        <input type="text" name="descricao" class="form-control bg-light border-0" placeholder="Ex: Segundas e Quartas, 14h às 16h">
-                    </div>
-
-                    {% if professores %}
-                    <div class="mb-4">
-                        <label class="form-label fw-semibold text-muted d-block">Vincular Professor(es) a esta Turma:</label>
-                        <div class="p-3 bg-light rounded-3" style="max-height: 160px; overflow-y: auto;">
-                            {% for prof in professores %}
-                            <div class="form-check mb-1">
-                                <input class="form-check-input" type="checkbox" name="professores" value="{{ prof['id'] }}" id="novo_prof_{{ prof['id'] }}">
-                                <label class="form-check-label fw-semibold" for="novo_prof_{{ prof['id'] }}">
-                                    {{ prof['login'] }}
-                                </label>
-                            </div>
-                            {% endfor %}
-                        </div>
-                    </div>
-                    {% endif %}
-
-                    <button type="submit" class="btn btn-primary w-100 rounded-pill fw-bold py-2 shadow-sm">
-                        Salvar Nova Turma
-                    </button>
-                </form>
-            </div>
-        </div>
-    </div>
-
-    <!-- GERENCIAMENTO DE VÍNCULOS DE PROFESSORES -->
-    <div class="col-lg-7">
-        <div class="card shadow-sm border-0 h-100" style="border-radius: 1.2rem;">
-            <div class="card-header bg-white border-bottom py-3 px-4 d-flex justify-content-between align-items-center" style="border-top-left-radius: 1.2rem; border-top-right-radius: 1.2rem;">
-                <h5 class="fw-bold text-primary mb-0"> Permissões de Turmas por Professor</h5>
-                <a href="/usuarios/novo" class="btn btn-sm btn-outline-primary rounded-pill fw-semibold">+ Criar Professor</a>
-            </div>
-            <div class="card-body p-4">
-                {% if professores %}
-                    {% for prof in professores %}
-                    <form action="/turmas/vincular" method="POST" class="p-3 mb-3 bg-light rounded-3 border">
-                        <input type="hidden" name="usuario_id" value="{{ prof['id'] }}">
-                        <input type="hidden" name="origem" value="turmas">
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <span class="fw-bold text-primary fs-6"> Professor(a): {{ prof['login'] }}</span>
-                            <button type="submit" class="btn btn-sm btn-success rounded-pill px-3 fw-bold">
-                                 Salvar Acesso
-                            </button>
-                        </div>
-                        <div class="d-flex flex-wrap gap-3 mt-2">
-                            {% for t in turmas %}
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="turmas" value="{{ t['nome'] }}" id="vinc_{{ prof['id'] }}_{{ t['id'] }}"
-                                       {% if t['nome'] in prof['turmas'] %}checked{% endif %}>
-                                <label class="form-check-label small fw-semibold" for="vinc_{{ prof['id'] }}_{{ t['id'] }}">
-                                    {{ t['nome'] }}
-                                </label>
-                            </div>
-                            {% endfor %}
-                        </div>
-                    </form>
-                    {% endfor %}
-                {% else %}
-                    <div class="text-center text-muted py-4">
-                        Nenhum usuário com perfil de professor cadastrado ainda.
-                        <br>
-                        <a href="/usuarios/novo" class="btn btn-sm btn-warning text-white rounded-pill mt-2 fw-bold">Cadastrar Primeiro Professor</a>
-                    </div>
-                {% endif %}
-            </div>
-        </div>
-    </div>
-</div>
-{% endif %}
 {% endblock %}
