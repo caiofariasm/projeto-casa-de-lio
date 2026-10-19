@@ -1,88 +1,313 @@
 <!DOCTYPE html>
-<html lang="pt-PT">
+<html lang="pt-PT" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Casa de Lió - Sistema</title>
+    <title>Casa de Lió - Sistema de Gestão</title>
     
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 rx=%2222%22 fill=%22%2316463d%22/><path d=%22M25 70V30h10l15 20 15-20h10v40H64V47L50 65 36 47v23z%22 fill=%22white%22/></svg>">
     
-    <!-- Bootstrap CSS -->
+    <!-- Google Fonts: Plus Jakarta Sans -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- Bootstrap CSS & Bootstrap Icons -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+
+    <!-- Inicialização rápida do Tema Escuro/Claro sem piscar a tela -->
+    <script>
+        (function() {
+            const temaSalvo = localStorage.getItem('casa_de_lio_theme') || 'light';
+            document.documentElement.setAttribute('data-theme', temaSalvo);
+        })();
+    </script>
     
     <style>
         :root {
-            /* Paleta Oficial ADRA */
+            /* Paleta Institucional ADRA Premium */
             --verde-adra: #16463d;
+            --verde-adra-hover: #0f332c;
+            --verde-adra-light: #e8f3f0;
             --laranja-adra: #e67e22;
-            --fundo-cinza: #f4f6f5;
+            --laranja-adra-hover: #d35400;
+            --fundo-cinza: #f3f6f5;
+            --superficie-card: #ffffff;
+            --texto-principal: #1e293b;
+            --texto-secundario: #64748b;
+            --borda-suave: rgba(22, 70, 61, 0.09);
+            --sombra-card: 0 10px 25px -5px rgba(22, 70, 61, 0.06), 0 8px 10px -6px rgba(22, 70, 61, 0.04);
+            --sombra-card-hover: 0 20px 30px -10px rgba(22, 70, 61, 0.13), 0 10px 15px -6px rgba(22, 70, 61, 0.06);
+        }
+
+        [data-theme="dark"] {
+            --verde-adra: #246a5d;
+            --verde-adra-hover: #2d8272;
+            --verde-adra-light: rgba(45, 130, 114, 0.2);
+            --fundo-cinza: #0f1715;
+            --superficie-card: #172320;
+            --texto-principal: #e2e8f0;
+            --texto-secundario: #94a3b8;
+            --borda-suave: rgba(255, 255, 255, 0.09);
+            --sombra-card: 0 10px 25px -5px rgba(0, 0, 0, 0.45);
+            --sombra-card-hover: 0 20px 30px -10px rgba(0, 0, 0, 0.6);
         }
         
         body {
             background-color: var(--fundo-cinza) !important;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: var(--texto-principal);
+            font-family: 'Plus Jakarta Sans', 'Segoe UI', system-ui, -apple-system, sans-serif;
+            transition: background-color 0.25s ease, color 0.25s ease;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
         }
 
-        /* 1 e 2. Cabeçalho Imersivo em Fundo Escuro */
-        .navbar {
-            background-color: var(--verde-adra) !important;
-            padding-top: 15px;
-            padding-bottom: 15px;
+        /* Cabeçalho Superior Modernizado com Gradiente Institucional */
+        .navbar-modern {
+            background: linear-gradient(135deg, #113830 0%, #16463d 55%, #1d5b4f 100%) !important;
+            padding-top: 0.75rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 4px 20px rgba(15, 45, 39, 0.18);
         }
         .navbar-brand {
-            font-size: 1.5rem;
-            letter-spacing: 0.5px;
+            font-size: 1.35rem;
+            letter-spacing: -0.3px;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.6rem;
         }
-        .nav-link {
+        .brand-logo-box {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.14);
+            border: 1px solid rgba(255, 255, 255, 0.22);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font-size: 1.1rem;
+        }
+        .navbar-modern .nav-link {
             color: rgba(255, 255, 255, 0.85) !important;
-            transition: color 0.3s;
+            font-size: 0.92rem;
+            font-weight: 600;
+            padding: 0.48rem 0.9rem !important;
+            border-radius: 999px;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.42rem;
         }
-        .nav-link:hover {
-            color: var(--laranja-adra) !important;
+        .navbar-modern .nav-link:hover {
+            color: #ffffff !important;
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+        .navbar-modern .nav-link.active-nav {
+            color: #ffffff !important;
+            background-color: rgba(230, 126, 34, 0.22);
+            box-shadow: inset 0 0 0 1px rgba(230, 126, 34, 0.55);
         }
 
-        /* Aplicação do Verde Institucional nos textos e botões secundários */
+        /* Crachá do Usuário Logado no Header */
+        .user-pill-badge {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            color: #ffffff;
+            padding: 0.35rem 0.85rem;
+            border-radius: 999px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.45rem;
+        }
+        .user-pill-role {
+            background: var(--laranja-adra);
+            color: #fff;
+            padding: 0.1rem 0.5rem;
+            border-radius: 999px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        /* Botão de Tema Escuro / Claro */
+        .btn-theme-toggle {
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            background: rgba(255, 255, 255, 0.08);
+            color: #fff;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+        }
+        .btn-theme-toggle:hover {
+            background: rgba(255, 255, 255, 0.2);
+            color: var(--laranja-adra);
+            transform: rotate(12deg);
+        }
+
+        /* Cores e Botões Institucionais */
         .text-primary { color: var(--verde-adra) !important; }
-        .bg-primary { background-color: var(--verde-adra) !important; }
+        [data-theme="dark"] .text-primary { color: #5eead4 !important; }
+        [data-theme="dark"] .text-muted { color: var(--texto-secundario) !important; }
+        [data-theme="dark"] .text-dark { color: var(--texto-principal) !important; }
+
+        .bg-primary {
+            background: linear-gradient(135deg, #16463d 0%, #1f6154 100%) !important;
+        }
         .border-primary { border-color: var(--verde-adra) !important; }
         
         .btn-primary { 
-            background-color: var(--verde-adra); 
-            border-color: var(--verde-adra); 
+            background: linear-gradient(135deg, #16463d 0%, #1d5b4f 100%);
+            border-color: #16463d;
+            box-shadow: 0 4px 12px rgba(22, 70, 61, 0.2);
+            transition: all 0.2s ease;
         }
         .btn-primary:hover { 
-            background-color: #0f302a; 
-            border-color: #0f302a; 
+            background: linear-gradient(135deg, #0f302a 0%, #16463d 100%);
+            border-color: #0f302a;
+            transform: translateY(-1px);
+            box-shadow: 0 6px 15px rgba(22, 70, 61, 0.28);
+        }
+        .btn-outline-primary {
+            color: var(--verde-adra);
+            border-color: var(--verde-adra);
+        }
+        .btn-outline-primary:hover {
+            background-color: var(--verde-adra);
+            border-color: var(--verde-adra);
+            color: #fff;
+        }
+        [data-theme="dark"] .btn-outline-primary {
+            color: #5eead4;
+            border-color: #5eead4;
+        }
+        [data-theme="dark"] .btn-outline-primary:hover {
+            background-color: #246a5d;
+            border-color: #246a5d;
+            color: #fff;
         }
 
-        /* Aplicação do Laranja nos botões de destaque */
         .btn-warning {
-            background-color: var(--laranja-adra) !important;
+            background: linear-gradient(135deg, #e67e22 0%, #f39c12 100%) !important;
             border-color: var(--laranja-adra) !important;
             color: white !important;
+            box-shadow: 0 4px 12px rgba(230, 126, 34, 0.24);
+            transition: all 0.2s ease;
+        }
+        .btn-warning:hover {
+            filter: brightness(1.05);
+            transform: translateY(-1px);
         }
 
-        /* 3. Bordas Arredondadas (Soft UI) idênticas às fotografias do site */
+        /* Cards Premium */
         .card {
-            border-radius: 1rem !important;
-            border: none;
-            transition: transform 0.2s ease-in-out;
+            background-color: var(--superficie-card);
+            color: var(--texto-principal);
+            border-radius: 1.15rem !important;
+            border: 1px solid var(--borda-suave) !important;
+            box-shadow: var(--sombra-card) !important;
+            transition: transform 0.22s ease, box-shadow 0.22s ease, background-color 0.25s ease;
         }
         .card:hover {
-            transform: translateY(-3px);
+            transform: translateY(-2px);
+            box-shadow: var(--sombra-card-hover) !important;
+        }
+        body.modal-open .card,
+        body.modal-open .card:hover {
+            transform: none !important;
+        }
+        [data-theme="dark"] .card-header.bg-white,
+        [data-theme="dark"] .card-footer.bg-white {
+            background-color: var(--superficie-card) !important;
+            border-color: var(--borda-suave) !important;
+        }
+        [data-theme="dark"] .bg-light,
+        [data-theme="dark"] .table-light {
+            background-color: #1e2d29 !important;
+            color: var(--texto-principal) !important;
+        }
+        [data-theme="dark"] .table {
+            color: var(--texto-principal) !important;
+            --bs-table-bg: transparent;
+            --bs-table-color: var(--texto-principal);
+            --bs-table-border-color: var(--borda-suave);
+            --bs-table-hover-bg: rgba(255, 255, 255, 0.04);
+            --bs-table-hover-color: #fff;
+        }
+        [data-theme="dark"] .form-control,
+        [data-theme="dark"] .form-select,
+        [data-theme="dark"] .list-group-item {
+            background-color: #1e2d29 !important;
+            color: var(--texto-principal) !important;
+            border-color: var(--borda-suave) !important;
+        }
+        [data-theme="dark"] .modal-content {
+            background-color: var(--superficie-card) !important;
+            color: var(--texto-principal) !important;
+        }
+        [data-theme="dark"] .dropdown-menu {
+            background-color: #1b2926 !important;
+            border: 1px solid var(--borda-suave) !important;
+        }
+        [data-theme="dark"] .dropdown-item {
+            color: var(--texto-principal) !important;
+        }
+        [data-theme="dark"] .dropdown-item:hover {
+            background-color: rgba(255, 255, 255, 0.07) !important;
         }
 
-        /* 4. Etiquetas (Badges) Visuais */
+        /* Etiquetas (Badges) Visuais Redesenhadas */
         .badge-institucional {
-            background-color: transparent;
+            background-color: rgba(230, 126, 34, 0.1);
             color: var(--laranja-adra);
-            border: 1.5px solid var(--laranja-adra);
-            padding: 0.3rem 0.6rem;
-            border-radius: 0.4rem;
-            font-size: 0.80rem;
+            border: 1px solid rgba(230, 126, 34, 0.35);
+            padding: 0.32rem 0.7rem;
+            border-radius: 999px;
+            font-size: 0.78rem;
             font-weight: 700;
-            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+        }
+
+        /* Avatar Circular de Iniciais */
+        .avatar-iniciais {
+            width: 42px;
+            height: 42px;
+            min-width: 42px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #16463d 0%, #246a5d 100%);
+            color: #ffffff;
+            font-weight: 700;
+            font-size: 0.92rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
             letter-spacing: 0.5px;
+            box-shadow: 0 3px 8px rgba(22, 70, 61, 0.18);
+        }
+
+        /* Dropdown Menu Refinado */
+        .dropdown-menu {
+            border-radius: 1rem;
+            padding: 0.5rem;
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12) !important;
+        }
+        .dropdown-item {
+            border-radius: 0.6rem;
+            padding: 0.5rem 0.85rem;
+            transition: all 0.15s ease;
         }
 
         .attendance-actions form { margin: 0; }
@@ -90,8 +315,8 @@
         .attendance-progress { min-width: 0; }
 
         @media (max-width: 575.98px) {
-            .navbar { padding-top: .55rem; padding-bottom: .55rem; }
-            .navbar-brand { font-size: 1.2rem; }
+            .navbar-modern { padding-top: .55rem; padding-bottom: .55rem; }
+            .navbar-brand { font-size: 1.15rem; }
             .container { --bs-gutter-x: 1.25rem; }
             .attendance-card-body { padding: 1rem !important; }
             .attendance-actions {
@@ -117,75 +342,199 @@
     </style>
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg shadow-sm">
+    {% set caminho_atual = (request.url.path | string) if (request and request.url) else '/' %}
+    <nav class="navbar navbar-expand-lg navbar-modern sticky-top">
         <div class="container">
-            <a class="navbar-brand fw-bold text-white" href="/">Casa de Lió</a>
+            <a class="navbar-brand fw-bold text-white" href="/">
+                <span class="brand-logo-box"><i class="bi bi-house-heart-fill"></i></span>
+                <span>Casa de Lió</span>
+            </a>
             <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon" style="filter: invert(1);"></span>
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-auto align-items-center">
+                <ul class="navbar-nav ms-auto align-items-lg-center gap-1 mt-3 mt-lg-0">
                     {% if request.session.get('perfil') == 'coordenacao' %}
                         <li class="nav-item dropdown">
-                            <a class="nav-link fw-semibold dropdown-toggle" href="#" id="menuTurmas" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                                Turmas
+                            <a class="nav-link dropdown-toggle {% if '/turmas' in caminho_atual %}active-nav{% endif %}" href="#" id="menuTurmas" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="bi bi-collection-fill"></i> Turmas
                             </a>
                             <ul class="dropdown-menu shadow border-0 mt-2" aria-labelledby="menuTurmas">
                                 <li>
-                                    <a class="dropdown-item text-primary fw-semibold" href="/turmas">
-                                        Painel de Controle de Turmas
+                                    <a class="dropdown-item text-primary fw-semibold d-flex align-items-center gap-2" href="/turmas">
+                                        <i class="bi bi-grid-1x2-fill"></i> Painel de Controle de Turmas
                                     </a>
                                 </li>
-                                <li><hr class="dropdown-divider"></li>
+                                <li><hr class="dropdown-divider my-1"></li>
                                 <li>
-                                    <a class="dropdown-item text-primary fw-semibold" href="/turmas/nova">
-                                        Criação de Novas Turmas
+                                    <a class="dropdown-item text-primary fw-semibold d-flex align-items-center gap-2" href="/turmas/nova">
+                                        <i class="bi bi-plus-circle-fill"></i> Criação de Novas Turmas
                                     </a>
                                 </li>
                             </ul>
                         </li>
                     {% else %}
-                        <li class="nav-item"><a class="nav-link fw-semibold" href="/turmas">Turmas</a></li>
+                        <li class="nav-item">
+                            <a class="nav-link {% if '/turmas' in caminho_atual %}active-nav{% endif %}" href="/turmas">
+                                <i class="bi bi-collection-fill"></i> Turmas
+                            </a>
+                        </li>
                     {% endif %}
-                    <li class="nav-item"><a class="nav-link fw-semibold" href="/">Chamada</a></li>
+
+                    <li class="nav-item">
+                        <a class="nav-link {% if caminho_atual == '/' %}active-nav{% endif %}" href="/">
+                            <i class="bi bi-clipboard2-check-fill"></i> Chamada
+                        </a>
+                    </li>
                     
                     {% if request.session.get('perfil') == 'coordenacao' %}
-                        <li class="nav-item"><a class="nav-link fw-semibold" href="/dashboard">Dashboard</a></li>
-                        <li class="nav-item"><a class="nav-link fw-semibold" href="/alunos">Alunos</a></li>
-                        <li class="nav-item"><a class="nav-link fw-semibold" href="/cadastrar">Cadastrar</a></li>
-                        <li class="nav-item"><a class="nav-link fw-semibold" href="/usuarios/novo">Professores & Permissões</a></li>
+                        <li class="nav-item">
+                            <a class="nav-link {% if '/dashboard' in caminho_atual %}active-nav{% endif %}" href="/dashboard">
+                                <i class="bi bi-bar-chart-line-fill"></i> Dashboard
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link {% if '/alunos' in caminho_atual %}active-nav{% endif %}" href="/alunos">
+                                <i class="bi bi-people-fill"></i> Alunos
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link {% if '/cadastrar' in caminho_atual %}active-nav{% endif %}" href="/cadastrar">
+                                <i class="bi bi-person-plus-fill"></i> Cadastrar
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link {% if '/usuarios' in caminho_atual %}active-nav{% endif %}" href="/usuarios/novo">
+                                <i class="bi bi-person-gear"></i> Professores & Permissões
+                            </a>
+                        </li>
                     {% endif %}
+
+                    <!-- Crachá do Usuário Logado -->
+                    {% if request.session.get('login') %}
+                    <li class="nav-item ms-lg-2 my-2 my-lg-0">
+                        <span class="user-pill-badge">
+                            <i class="bi bi-person-circle"></i>
+                            <span>{{ request.session.get('login') }}</span>
+                            <span class="user-pill-role">
+                                {% if request.session.get('perfil') == 'coordenacao' %}Coord.{% else %}Prof.{% endif %}
+                            </span>
+                        </span>
+                    </li>
+                    {% endif %}
+
+                    <!-- Botão Modo Escuro / Claro -->
+                    <li class="nav-item ms-lg-1 my-1 my-lg-0">
+                        <button type="button" id="btnToggleTheme" class="btn-theme-toggle" title="Alternar Modo Escuro / Claro" aria-label="Alternar tema">
+                            <i class="bi bi-moon-stars-fill" id="iconTheme"></i>
+                        </button>
+                    </li>
                     
-                    <!-- Menu Suspenso (Dropdown) com Trava de Segurança -->
-                    <li class="nav-item dropdown ms-lg-3 mt-2 mt-lg-0">
+                    <!-- Menu Suspenso (Dropdown) de Opções -->
+                    <li class="nav-item dropdown ms-lg-1 mt-2 mt-lg-0">
                         <a class="nav-link fw-bold dropdown-toggle" href="#" id="menuPerfil" role="button" data-bs-toggle="dropdown" aria-expanded="false" style="color: var(--laranja-adra) !important;">
-                            Opções
+                            <i class="bi bi-gear-fill"></i> Opções
                         </a>
                         <ul class="dropdown-menu dropdown-menu-end shadow border-0 mt-2" aria-labelledby="menuPerfil">
                             {% if request.session.get('perfil') == 'coordenacao' %}
                                 <li>
-                                    <a class="dropdown-item text-primary fw-bold" href="/auditoria">
-                                        Auditoria LGPD
+                                    <a class="dropdown-item text-primary fw-bold d-flex align-items-center gap-2" href="/auditoria">
+                                        <i class="bi bi-shield-check"></i> Auditoria LGPD
                                     </a>
                                 </li>
-                                <li><hr class="dropdown-divider"></li>
+                                <li><hr class="dropdown-divider my-1"></li>
                             {% endif %}
-                            <li><form action="/sair" method="POST"><button class="dropdown-item text-danger fw-bold" type="submit">Sair do Sistema</button></form></li>
+                            <li>
+                                <form action="/sair" method="POST">
+                                    <button class="dropdown-item text-danger fw-bold d-flex align-items-center gap-2" type="submit">
+                                        <i class="bi bi-box-arrow-right"></i> Sair do Sistema
+                                    </button>
+                                </form>
+                            </li>
                         </ul>
                     </li>
                 </ul>
             </div>
         </div>
     </nav>
+
+    <!-- Container Global de Notificações Flutuantes (Toasts) -->
+    <div id="toastContainer" class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 1095; margin-top: 68px;"></div>
     
-    <div class="container mt-4">
+    <div class="container mt-4 flex-grow-1">
         {% block conteudo %}{% endblock %}
     </div>
     
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     
-    <!-- Script Global de Máscara de Telefone: (73) 98191-7878 -->
+    <!-- Scripts Globais: Tema Escuro, Toasts Flutuantes e Máscara de Telefone -->
     <script>
+        // 1. Controle do Modo Escuro / Claro
+        (function() {
+            const btn = document.getElementById('btnToggleTheme');
+            const icon = document.getElementById('iconTheme');
+            function atualizarIcone(tema) {
+                if (!icon) return;
+                icon.className = tema === 'dark' ? 'bi bi-sun-fill text-warning' : 'bi bi-moon-stars-fill';
+            }
+            atualizarIcone(document.documentElement.getAttribute('data-theme'));
+            if (btn) {
+                btn.addEventListener('click', function() {
+                    const atual = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+                    const novo = atual === 'dark' ? 'light' : 'dark';
+                    document.documentElement.setAttribute('data-theme', novo);
+                    localStorage.setItem('casa_de_lio_theme', novo);
+                    atualizarIcone(novo);
+                });
+            }
+        })();
+
+        // 2. Sistema Global de Notificações Flutuantes (Toasts)
+        window.mostrarToast = function(mensagem, tipo) {
+            const container = document.getElementById('toastContainer');
+            if (!container) return;
+            const cores = {
+                success: { bg: '#16463d', icone: 'bi-check-circle-fill text-white' },
+                danger:  { bg: '#dc3545', icone: 'bi-exclamation-octagon-fill text-white' },
+                warning: { bg: '#e67e22', icone: 'bi-exclamation-triangle-fill text-white' },
+                info:    { bg: '#0dcaf0', icone: 'bi-info-circle-fill text-white' }
+            };
+            const cfg = cores[tipo] || cores.success;
+            const toastEl = document.createElement('div');
+            toastEl.className = 'toast align-items-center text-white border-0 shadow-lg mb-2';
+            toastEl.style.backgroundColor = cfg.bg;
+            toastEl.style.borderRadius = '0.85rem';
+            toastEl.setAttribute('role', 'alert');
+            toastEl.setAttribute('aria-live', 'assertive');
+            toastEl.setAttribute('aria-atomic', 'true');
+            toastEl.innerHTML = `
+                <div class="d-flex align-items-center px-3 py-2">
+                    <i class="bi ${cfg.icone} fs-5 me-2"></i>
+                    <div class="toast-body fw-semibold small px-1">${mensagem}</div>
+                    <button type="button" class="btn-close btn-close-white ms-auto" data-bs-dismiss="toast" aria-label="Fechar"></button>
+                </div>
+            `;
+            container.appendChild(toastEl);
+            const bsToast = new bootstrap.Toast(toastEl, { delay: 3500 });
+            bsToast.show();
+            toastEl.addEventListener('hidden.bs.toast', function() {
+                toastEl.remove();
+            });
+        };
+
+        // Dispara Toast automático quando houver alertas de feedback na página
+        document.addEventListener('DOMContentLoaded', function() {
+            document.querySelectorAll('.alert-dismissible').forEach(function(alerta) {
+                const texto = alerta.textContent.trim();
+                if (texto) {
+                    const tipo = alerta.classList.contains('alert-danger') ? 'danger'
+                               : alerta.classList.contains('alert-warning') ? 'warning' : 'success';
+                    window.mostrarToast(texto, tipo);
+                }
+            });
+        });
+
+        // 3. Máscara de Telefone: (73) 98191-7878
         function aplicarMascaraTelefone(input) {
             function formatar(valor) {
                 if (!valor) return '';
@@ -202,11 +551,10 @@
                 return '';
             }
 
-            input.addEventListener('input', function(e) {
+            input.addEventListener('input', function() {
                 input.value = formatar(input.value);
             });
 
-            // Formata o valor existente ao carregar a página (ex: tela de edição)
             if (input.value) {
                 input.value = formatar(input.value);
             }

@@ -24,20 +24,20 @@
 <div class="row mb-4 align-items-center">
     <div class="col-md-7">
         {% if request.session.get('perfil') == 'coordenacao' %}
-            <h2 class="text-primary fw-bold mb-1">Painel de Controle de Turmas</h2>
+            <h2 class="text-primary fw-bold mb-1"><i class="bi bi-grid-1x2-fill me-2"></i>Painel de Controle de Turmas</h2>
             <p class="text-muted mb-0">Gerencie as turmas ativas, edite informações e acesse a chamada de cada curso</p>
         {% else %}
-            <h2 class="text-primary fw-bold mb-1">Minhas Turmas</h2>
+            <h2 class="text-primary fw-bold mb-1"><i class="bi bi-collection-fill me-2"></i>Minhas Turmas</h2>
             <p class="text-muted mb-0">Selecione uma das suas turmas abaixo para realizar a chamada do dia</p>
         {% endif %}
     </div>
     <div class="col-md-5 text-md-end mt-3 mt-md-0 d-flex flex-wrap justify-content-md-end gap-2">
         {% if request.session.get('perfil') == 'coordenacao' %}
             <a href="/turmas/nova" class="btn btn-primary rounded-pill px-4 fw-semibold shadow-sm">
-                + Nova Turma
+                <i class="bi bi-plus-circle-fill me-1"></i> Nova Turma
             </a>
             <a href="/usuarios/novo" class="btn btn-outline-primary rounded-pill px-4 fw-semibold">
-                Professores & Permissões
+                <i class="bi bi-person-gear me-1"></i> Professores & Permissões
             </a>
         {% endif %}
     </div>
@@ -51,16 +51,16 @@
             <div class="card shadow-sm border-0 h-100 d-flex flex-column justify-content-between" style="border-radius: 1.2rem; border-top: 5px solid var(--verde-adra) !important;">
                 <div class="card-body p-4">
                     <div class="d-flex justify-content-between align-items-start mb-2">
-                        <span class="badge-institucional">{{ t['total_alunos'] }} aluno(s)</span>
+                        <span class="badge-institucional"><i class="bi bi-people-fill"></i> {{ t['total_alunos'] }} aluno(s)</span>
                         {% if request.session.get('perfil') == 'coordenacao' %}
                             <div class="d-flex align-items-center gap-2">
                                 <button type="button" class="btn btn-sm btn-outline-primary rounded-pill px-2 py-0 fw-semibold" style="font-size: 0.8rem;" data-bs-toggle="modal" data-bs-target="#modalEditarTurma{{ t['id'] }}" title="Editar informações da turma">
-                                     Editar
+                                    <i class="bi bi-pencil-square me-1"></i>Editar
                                 </button>
                                 {% if t['total_alunos'] == 0 %}
                                     <form action="/turmas/excluir/{{ t['id'] }}" method="POST" class="d-inline" onsubmit="return confirm('Deseja remover a turma {{ t['nome'] }}?');">
                                         <button type="submit" class="btn btn-sm btn-link text-danger p-0 text-decoration-none" title="Excluir turma vazia" style="font-size: 0.8rem;">
-                                             Excluir
+                                            <i class="bi bi-trash3 me-1"></i>Excluir
                                         </button>
                                     </form>
                                 {% endif %}
@@ -76,10 +76,10 @@
                             <span class="small fw-semibold text-dark">
                                 {% if t['limite_alunos'] is none %}{{ t['total_alunos'] }} matriculados · sem limite{% else %}{{ t['total_alunos'] }}/{{ t['limite_alunos'] }} alunos{% endif %}
                             </span>
-                            {% if t['lotada'] %}<span class="badge text-bg-danger">Lotada</span>{% endif %}
+                            {% if t['lotada'] %}<span class="badge text-bg-danger rounded-pill">Lotada</span>{% endif %}
                         </div>
                         {% if t['limite_alunos'] is not none %}
-                        <div class="progress" role="progressbar" aria-label="Ocupação da turma {{ t['nome'] }}" aria-valuenow="{{ t['total_alunos'] }}" aria-valuemin="0" aria-valuemax="{{ t['limite_alunos'] }}" style="height: .45rem;">
+                        <div class="progress rounded-pill" role="progressbar" aria-label="Ocupação da turma {{ t['nome'] }}" aria-valuenow="{{ t['total_alunos'] }}" aria-valuemin="0" aria-valuemax="{{ t['limite_alunos'] }}" style="height: .45rem;">
                             <div class="progress-bar {% if t['lotada'] %}bg-danger{% else %}bg-success{% endif %}" style="width: {{ t['ocupacao_percentual'] }}%"></div>
                         </div>
                         {% endif %}
@@ -89,17 +89,19 @@
                         <small class="text-muted fw-semibold d-block mb-1">Professor(es) Responsável(is):</small>
                         {% if t['professores'] %}
                             {% for prof_login in t['professores'] %}
-                                <span class="badge bg-light text-primary border me-1 mb-1"> {{ prof_login }}</span>
+                                <span class="badge bg-light text-primary border rounded-pill px-2 py-1 me-1 mb-1">
+                                    <i class="bi bi-person-workspace me-1"></i>{{ prof_login }}
+                                </span>
                             {% endfor %}
                         {% else %}
-                            <span class="badge bg-light text-muted border">Nenhum professor vinculado</span>
+                            <span class="badge bg-light text-muted border rounded-pill px-2 py-1">Nenhum professor vinculado</span>
                         {% endif %}
                     </div>
                 </div>
 
                 <div class="card-footer bg-white border-0 p-4 pt-0">
                     <a href="/?turma={{ t['nome'] }}" class="btn btn-warning w-100 rounded-pill fw-bold text-white shadow-sm py-2">
-                         Fazer Chamada desta Turma
+                        <i class="bi bi-clipboard2-check-fill me-1"></i> Fazer Chamada desta Turma
                     </a>
                 </div>
             </div>
