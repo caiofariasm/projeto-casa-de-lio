@@ -136,16 +136,7 @@ def migrar_banco_se_necessario():
     else:
         logger.error("Banco contém presenças duplicadas; índice único não aplicado. Corrija os duplicados manualmente.")
 
-    # Popular turmas padrão e turmas existentes em alunos
-    for nome_t, desc_t in [('Manhã', 'Turno Matutino'), ('Tarde', 'Turno Vespertino'), ('Noite', 'Turno Noturno')]:
-        cursor.execute("INSERT OR IGNORE INTO turmas (nome, descricao) VALUES (?, ?)", (nome_t, desc_t))
-
-    cursor.executemany(
-        "INSERT INTO turmas (nome, descricao, limite_alunos) VALUES (?, 'Turma inicial', ?) "
-        "ON CONFLICT(nome) DO UPDATE SET limite_alunos = excluded.limite_alunos",
-        TURMAS_INICIAIS,
-    )
-
+    # Sincroniza eventuais turmas já vinculadas a alunos cadastrados
     turmas_existentes = cursor.execute(
         'SELECT DISTINCT turma FROM alunos WHERE turma IS NOT NULL AND turma != ""'
     ).fetchall()
