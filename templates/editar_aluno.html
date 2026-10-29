@@ -1,0 +1,68 @@
+{% extends 'base.html' %}
+{% block conteudo %}
+<div class="row justify-content-center mb-5">
+    <div class="col-md-8 col-lg-7">
+        <div class="card shadow-lg border-0" style="border-radius: 1.5rem;">
+            <div class="card-header bg-primary text-white pt-4 pb-3" style="border-top-left-radius: 1.5rem; border-top-right-radius: 1.5rem;">
+                <h3 class="text-center fw-bold mb-0">Editar Aluno</h3>
+                <p class="text-center text-white-50 mb-0">Atualização cadastral de {{ aluno['nome'] }}</p>
+            </div>
+            
+            <div class="card-body p-4 p-md-5">
+                <form action="/alunos/editar/{{ aluno['id'] }}" method="POST">
+                    {% if erro == 'turma_lotada' %}
+                    <div class="alert alert-warning" role="alert">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i>A turma escolhida está lotada. O aluno continua na turma atual; aumente o limite ou escolha outra turma.
+                    </div>
+                    {% elif erro == 'turma_invalida' %}
+                    <div class="alert alert-danger" role="alert">
+                        <i class="bi bi-x-circle-fill me-2"></i>A turma selecionada não está cadastrada. Escolha uma turma disponível.
+                    </div>
+                    {% endif %}
+                    
+                    <!-- DADOS DO ALUNO -->
+                    <div class="mb-4">
+                        <label class="form-label fw-bold text-dark">
+                            <i class="bi bi-person-fill text-primary me-1"></i>Nome Completo
+                        </label>
+                        <input type="text" name="nome" value="{{ aluno['nome'] }}" class="form-control form-control-lg bg-light border-0" required>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label fw-bold text-dark">
+                            <i class="bi bi-whatsapp text-success me-1"></i>Telefone (WhatsApp)
+                        </label>
+                        <input type="tel" name="telefone" value="{{ aluno['telefone'] or '' }}" class="form-control form-control-lg bg-light border-0 mascara-telefone" placeholder="(73) 98191-7878" maxlength="15" required>
+                        <div class="form-text text-muted">Utilizado para avisos e acompanhamento de frequência.</div>
+                    </div>
+
+                    <div class="mb-4">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <label class="form-label fw-bold text-dark mb-0">
+                                <i class="bi bi-mortarboard-fill text-primary me-1"></i>Turma / Oficina
+                            </label>
+                            <a href="/turmas/nova" class="small text-primary text-decoration-none fw-semibold">+ Nova Turma</a>
+                        </div>
+                        <select name="turma" class="form-select form-select-lg bg-light border-0" required>
+                            {% for t in turmas_disponiveis %}
+                                <option value="{{ t['nome'] }}" {% if aluno['turma'] == t['nome'] %}selected{% endif %} {% if t['lotada'] and t['nome'] != aluno['turma'] %}disabled{% endif %}>
+                                    {{ t['nome'] }} — {% if t['limite_alunos'] is none %}{{ t['total_alunos'] }} matriculados, sem limite{% else %}{{ t['total_alunos'] }}/{{ t['limite_alunos'] }} alunos{% endif %}{% if t['lotada'] %} · lotada{% endif %}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="d-flex gap-3 mt-5 pt-2">
+                        <button type="submit" class="btn btn-warning btn-lg rounded-pill fw-bold text-white shadow-sm flex-grow-1 py-3">
+                            <i class="bi bi-check-lg me-1"></i>Salvar Alterações
+                        </button>
+                        <a href="/alunos" class="btn btn-light btn-lg rounded-pill fw-bold text-muted px-4 py-3">
+                            Cancelar
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

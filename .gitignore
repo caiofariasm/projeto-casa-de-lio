@@ -1,0 +1,22 @@
+# Variáveis de ambiente sensíveis
+.env
+
+# Cache do Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+
+# Ambientes virtuais
+venv/
+env/
+.venv/
+
+# Caches e testes
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Sistema operacional
+.DS_Store
+Thumbs.db
