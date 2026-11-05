@@ -1,0 +1,897 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Apresentação Oficial | Sistema de Gestão Escolar - Casa de Lió (ADRA)</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 rx=%2222%22 fill=%22%2316463d%22/><path d=%22M25 70V30h10l15 20 15-20h10v40H64V47L50 65 36 47v23z%22 fill=%22white%22/></svg>">
+    
+    <!-- Google Fonts: Plus Jakarta Sans -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Bootstrap 5.3 & Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+
+    <style>
+        :root {
+            --verde-adra: #16463d;
+            --verde-adra-dark: #0d2b25;
+            --verde-adra-light: #e8f3f0;
+            --laranja-adra: #e67e22;
+            --laranja-adra-light: #fef3e8;
+            --fundo-slide: #f4f7f6;
+            --texto-principal: #1e293b;
+            --texto-secundario: #64748b;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+            background-color: var(--verde-adra-dark);
+            color: var(--texto-principal);
+        }
+
+        /* Estrutura do Deck de Slides */
+        .deck-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            background: var(--fundo-slide);
+        }
+
+        .slide {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            padding: 3.5rem 5rem 5.5rem 5rem;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(20px) scale(0.99);
+            transition: opacity 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+                        transform 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+                        visibility 0.45s;
+            overflow-y: auto;
+        }
+
+        .slide.active {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0) scale(1);
+            z-index: 10;
+        }
+
+        .slide-hero {
+            background: radial-gradient(circle at 85% 20%, rgba(230, 126, 34, 0.18), transparent 40%),
+                        linear-gradient(135deg, #0d2b25 0%, #16463d 60%, #1f5f53 100%);
+            color: #ffffff;
+        }
+
+        /* Cabeçalho Padrão de Slide */
+        .slide-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.45rem 1rem;
+            border-radius: 999px;
+            font-size: 0.82rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            background: var(--verde-adra-light);
+            color: var(--verde-adra);
+            margin-bottom: 0.85rem;
+            width: fit-content;
+        }
+
+        .slide-hero .slide-badge {
+            background: rgba(255, 255, 255, 0.14);
+            color: #ffffff;
+            border: 1px solid rgba(255, 255, 255, 0.25);
+        }
+
+        .slide-title {
+            font-size: clamp(2rem, 3.3vw, 3.1rem);
+            font-weight: 800;
+            letter-spacing: -0.03em;
+            line-height: 1.15;
+            color: var(--verde-adra);
+            margin-bottom: 0.6rem;
+        }
+
+        .slide-hero .slide-title {
+            color: #ffffff;
+            font-size: clamp(2.5rem, 4.2vw, 4rem);
+        }
+
+        .slide-subtitle {
+            font-size: clamp(1rem, 1.35vw, 1.25rem);
+            color: var(--texto-secundario);
+            max-width: 820px;
+            margin-bottom: 2rem;
+        }
+
+        .slide-hero .slide-subtitle {
+            color: rgba(255, 255, 255, 0.85);
+        }
+
+        /* Cards de Apresentação */
+        .pres-card {
+            background: #ffffff;
+            border-radius: 1.25rem;
+            padding: 1.65rem;
+            border: 1px solid rgba(22, 70, 61, 0.08);
+            box-shadow: 0 12px 30px -8px rgba(22, 70, 61, 0.07);
+            height: 100%;
+            transition: transform 0.25s ease, box-shadow 0.25s ease;
+        }
+
+        .pres-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 20px 35px -10px rgba(22, 70, 61, 0.13);
+        }
+
+        .icon-box {
+            width: 52px;
+            height: 52px;
+            border-radius: 14px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .icon-green {
+            background: var(--verde-adra-light);
+            color: var(--verde-adra);
+        }
+
+        .icon-orange {
+            background: var(--laranja-adra-light);
+            color: var(--laranja-adra);
+        }
+
+        .icon-red {
+            background: #fee2e2;
+            color: #dc2626;
+        }
+
+        .icon-blue {
+            background: #e0f2fe;
+            color: #0284c7;
+        }
+
+        /* Mockup Interativo de Chamada no Slide */
+        .demo-card-Interactive {
+            background: #ffffff;
+            border-radius: 1.25rem;
+            border: 2px solid rgba(22, 70, 61, 0.12);
+            box-shadow: 0 20px 45px rgba(22, 70, 61, 0.1);
+            overflow: hidden;
+        }
+
+        .demo-topbar {
+            background: linear-gradient(135deg, #113830 0%, #16463d 100%);
+            color: white;
+            padding: 0.9rem 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .avatar-circle {
+            width: 46px;
+            height: 46px;
+            border-radius: 50%;
+            background: var(--verde-adra);
+            color: #fff;
+            font-weight: 700;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        /* Gaveta de Cola do Apresentador (Speaker Notes) */
+        .speaker-notes-drawer {
+            position: fixed;
+            bottom: 4.5rem;
+            right: 2rem;
+            width: 440px;
+            max-width: calc(100vw - 4rem);
+            background: rgba(15, 23, 42, 0.96);
+            backdrop-filter: blur(12px);
+            color: #f8fafc;
+            border-radius: 1.1rem;
+            padding: 1.35rem 1.5rem;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            z-index: 100;
+            display: none;
+        }
+
+        .speaker-notes-drawer.show {
+            display: block;
+            animation: fadeInUp 0.25s ease;
+        }
+
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(12px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Barra Inferior de Controle */
+        .bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 4rem;
+            background: #ffffff;
+            border-top: 1px solid rgba(22, 70, 61, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 2.5rem;
+            z-index: 90;
+        }
+
+        .progress-track {
+            position: fixed;
+            bottom: 4rem;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: rgba(22, 70, 61, 0.1);
+            z-index: 95;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--verde-adra), var(--laranja-adra));
+            width: 10%;
+            transition: width 0.35s ease;
+        }
+
+        .course-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.45rem 0.9rem;
+            border-radius: 999px;
+            background: #ffffff;
+            border: 1px solid rgba(22, 70, 61, 0.15);
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--verde-adra);
+            box-shadow: 0 2px 6px rgba(0,0,0,0.03);
+        }
+
+        .btn-adra {
+            background-color: var(--verde-adra);
+            color: #ffffff;
+            border-radius: 999px;
+            padding: 0.55rem 1.3rem;
+            font-weight: 700;
+            border: none;
+            transition: all 0.2s;
+        }
+
+        .btn-adra:hover {
+            background-color: var(--verde-adra-dark);
+            color: #ffffff;
+        }
+
+        .btn-orange {
+            background-color: var(--laranja-adra);
+            color: #ffffff;
+            border-radius: 999px;
+            padding: 0.65rem 1.5rem;
+            font-weight: 700;
+            border: none;
+            transition: all 0.2s;
+        }
+
+        .btn-orange:hover {
+            background-color: #d35400;
+            color: #ffffff;
+        }
+
+        @media (max-width: 992px) {
+            .slide {
+                padding: 2rem 1.5rem 5.5rem 1.5rem;
+                justify-content: flex-start;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="deck-container">
+
+    <!-- ==========================================
+         SLIDE 1: CAPA / ABERTURA
+         ========================================== -->
+    <section class="slide slide-hero active" data-notes="<strong>Como começar (1 min):</strong><br>• Cumprimente o professor e a turma.<br>• Apresente a <strong>Casa de Lió (ADRA)</strong>: um projeto social e educacional que oferece 20 oficinas profissionalizantes e culturais gratuitas para a comunidade.<br>• Destaque a frase central: <em>'Nosso objetivo não foi apenas criar um site, mas resolver uma dor humana real: substituir listas de papel por gestão inteligente que combate a evasão e garante a fila de espera.'</em>">
+        <div class="container-fluid max-w-6xl">
+            <div class="slide-badge">
+                <i class="bi bi-heart-pulse-fill text-warning"></i> Projeto Social & Educacional • ADRA
+            </div>
+            <h1 class="slide-title mb-3">
+                Sistema de Gestão Escolar<br>
+                <span style="color: #f39c12;">Casa de Lió</span>
+            </h1>
+            <p class="slide-subtitle mb-4">
+                Transformação digital na gestão de matrículas, diário de frequência em tempo real, combate ativo à evasão via WhatsApp e conformidade integral com a LGPD.
+            </p>
+
+            <div class="row g-3 mt-2" style="max-width: 900px;">
+                <div class="col-md-4">
+                    <div class="p-3 rounded-4" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.18);">
+                        <div class="fs-2 fw-bold text-warning">20 Oficinas</div>
+                        <div class="small text-white-50">Cursos ativos com controle automático de vagas e lotação</div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="p-3 rounded-4" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.18);">
+                        <div class="fs-2 fw-bold text-warning">1 Clique</div>
+                        <div class="small text-white-50">Para chamada AJAX sem recarregar a página e alerta no WhatsApp</div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="p-3 rounded-4" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.18);">
+                        <div class="fs-2 fw-bold text-warning">100% LGPD</div>
+                        <div class="small text-white-50">Proteção de menores, dados médicos e trilha de auditoria</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-5 d-flex flex-wrap gap-3 align-items-center">
+                <button class="btn-orange shadow" onclick="nextSlide()">
+                    Iniciar Apresentação <i class="bi bi-arrow-right ms-1"></i>
+                </button>
+                <a href="http://localhost:8000" target="_blank" class="btn btn-outline-light rounded-pill px-4 py-2 fw-semibold">
+                    <i class="bi bi-box-arrow-up-right me-1"></i> Abrir Sistema ao Vivo (localhost:8000)
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- ==========================================
+         SLIDE 2: A DOR REAL DA INSTITUIÇÃO
+         ========================================== -->
+    <section class="slide" data-notes="<strong>O Problema antes do sistema (1.5 min):</strong><br>• Explique que a Casa de Lió atende dezenas de alunos em cursos muito disputados (Corte e Costura, Violão, Libras, Mini Chef).<br>• <strong>Problema 1:</strong> Chamada feita no papel gerava perda de histórico e retrabalho para a coordenação.<br>• <strong>Problema 2 (O mais grave):</strong> Como os cursos são gratuitos e têm limite de vagas (10 a 20 alunos), quando um aluno abandonava o curso em silêncio, a instituição demorava semanas para perceber — e quem estava na fila de espera perdia a oportunidade!">
+        <div class="container-fluid">
+            <div class="slide-badge"><i class="bi bi-exclamation-triangle-fill"></i> O Cenário Anterior</div>
+            <h2 class="slide-title">Qual problema real precisávamos resolver?</h2>
+            <p class="slide-subtitle">
+                Na rotina de uma instituição socioassistencial, a burocracia manual no papel custa tempo dos educadores e vagas preciosas da comunidade.
+            </p>
+
+            <div class="row g-4">
+                <div class="col-md-3">
+                    <div class="pres-card border-top border-danger border-4">
+                        <div class="icon-box icon-red"><i class="bi bi-file-earmark-x-fill"></i></div>
+                        <h5 class="fw-bold">Listas em Papel</h5>
+                        <p class="text-muted small mb-0">
+                            Chamadas feitas em pranchetas físicas dificultavam saber a assiduidade real de cada turma e geravam perda de informações.
+                        </p>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="pres-card border-top border-danger border-4">
+                        <div class="icon-box icon-red"><i class="bi bi-person-dash-fill"></i></div>
+                        <h5 class="fw-bold">Evasão Silenciosa</h5>
+                        <p class="text-muted small mb-0">
+                            Quando um aluno faltava 3 ou 4 vezes seguidas, a coordenação não ficava sabendo a tempo de acolher a família ou liberar a vaga.
+                        </p>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="pres-card border-top border-danger border-4">
+                        <div class="icon-box icon-red"><i class="bi bi-file-medical-fill"></i></div>
+                        <h5 class="fw-bold">Atestados Perdidos</h5>
+                        <p class="text-muted small mb-0">
+                            Justificativas médicas entregues em papel ou pelo WhatsApp pessoal dos professores se perdiam na hora da prestação de contas.
+                        </p>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="pres-card border-top border-danger border-4">
+                        <div class="icon-box icon-red"><i class="bi bi-shield-exclamation"></i></div>
+                        <h5 class="fw-bold">Risco com a LGPD</h5>
+                        <p class="text-muted small mb-0">
+                            Fichas de menores de idade e condições médicas (alergias, remédios) precisavam de termo formal assinado e controle de acesso.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ==========================================
+         SLIDE 3: IMPACTO SOCIAL E OS 20 CURSOS
+         ========================================== -->
+    <section class="slide" data-notes="<strong>Impacto Social e Gestão de Vagas (1.5 min):</strong><br>• Mostre que o sistema já nasce configurado com o catálogo real das <strong>20 oficinas da Casa de Lió</strong>.<br>• Explique que cada curso tem capacidade física própria (ex: Mini Chef comporta 10 alunos; Depilação 12; Corte e Costura 18).<br>• O sistema impede superlotação acidental e permite que um mesmo aluno curse mais de uma oficina, enquanto cada professor enxerga apenas as suas turmas.">
+        <div class="container-fluid">
+            <div class="slide-badge"><i class="bi bi-people-fill"></i> Impacto na Comunidade</div>
+            <h2 class="slide-title">Gestão Inteligente de Oficinas e Lotação</h2>
+            <p class="slide-subtitle">
+                O sistema gerencia 20 cursos profissionalizantes, artísticos e infantis, controlando automaticamente o limite de vagas de cada sala.
+            </p>
+
+            <div class="row g-4 align-items-center">
+                <div class="col-lg-7">
+                    <div class="pres-card">
+                        <h6 class="text-uppercase fw-bold text-muted small mb-3">
+                            <i class="bi bi-grid-fill text-success me-1"></i> Catálogo Real de Oficinas da Casa de Lió
+                        </h6>
+                        <div class="d-flex flex-wrap gap-2">
+                            <span class="course-pill"><i class="bi bi-scissors"></i> Corte e Costura (18 vagas)</span>
+                            <span class="course-pill"><i class="bi bi-music-note-beamed"></i> Violão Terça/Sexta (20 vagas)</span>
+                            <span class="course-pill"><i class="bi bi-Translate"></i> Libras (20 vagas)</span>
+                            <span class="course-pill"><i class="bi bi-egg-fried"></i> Mini Chef (10 vagas)</span>
+                            <span class="course-pill"><i class="bi bi-graph-up-arrow"></i> Empreendedorismo (20 vagas)</span>
+                            <span class="course-pill"><i class="bi bi-palette-fill"></i> Pintura Infantil (15 vagas)</span>
+                            <span class="course-pill"><i class="bi bi-brush-fill"></i> Pintura em Tecido (20 vagas)</span>
+                            <span class="course-pill"><i class="bi bi-stars"></i> Design de Sobrancelhas (20 vagas)</span>
+                            <span class="course-pill"><i class="bi bi-heart-fill"></i> Depilação (12 vagas)</span>
+                            <span class="course-pill"><i class="bi bi-flower1"></i> Amigurumi & Crochê (20 vagas)</span>
+                            <span class="course-pill"><i class="bi bi-box2-heart"></i> Costura Criativa & Bordado (20 vagas)</span>
+                            <span class="course-pill"><i class="bi bi-gift-fill"></i> Embalagens & Vagonite (20 vagas)</span>
+                        </div>
+                        <div class="mt-4 pt-3 border-top d-flex justify-content-between align-items-center text-muted small">
+                            <span><i class="bi bi-check2-circle text-success me-1"></i> Múltiplas matrículas por aluno</span>
+                            <span><i class="bi bi-person-lock text-success me-1"></i> Vínculo exclusivo de turmas por Professor</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-lg-5">
+                    <div class="pres-card">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="badge bg-success bg-opacity-10 text-success px-3 py-1 rounded-pill fw-bold">Simulação de Card de Turma</span>
+                            <span class="badge bg-danger rounded-pill">Lotada (10/10)</span>
+                        </div>
+                        <h4 class="fw-bold mb-1" style="color: var(--verde-adra);">MINI CHEF</h4>
+                        <p class="text-muted small mb-3">Oficina prática de culinária e nutrição infantil</p>
+                        
+                        <div class="d-flex justify-content-between small fw-bold mb-1">
+                            <span>Ocupação da Sala</span>
+                            <span class="text-danger">100% (10/10 alunos)</span>
+                        </div>
+                        <div class="progress rounded-pill mb-3" style="height: 10px;">
+                            <div class="progress-bar bg-danger" style="width: 100%"></div>
+                        </div>
+                        <p class="small text-muted mb-0">
+                            <i class="bi bi-lightbulb-fill text-warning me-1"></i>
+                            <strong>Regra de Produto:</strong> Quando a turma atinge o limite, o sistema bloqueia matrículas excedentes e sinaliza à coordenação!
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ==========================================
+         SLIDE 4: JORNADA 1 - MATRÍCULA & FICHA A4
+         ========================================== -->
+    <section class="slide" data-notes="<strong>Jornada 1: Matrícula sem Erros (1.5 min):</strong><br>• Mostre como pensamos na usabilidade para quem trabalha na secretaria.<br>• Ao digitar o <strong>CEP</strong>, o sistema busca na API ViaCEP e preenche Rua, Bairro e Cidade sozinho.<br>• O telefone aplica máscara automática de WhatsApp.<br>• Se a data de nascimento indicar menos de 18 anos, o formulário exige o Responsável Legal.<br>• Ao salvar, já gera a <strong>Ficha Cadastral A4 pronta para impressão</strong> com o Brasão da ADRA para assinatura física!">
+        <div class="container-fluid">
+            <div class="slide-badge"><i class="bi bi-person-vcard-fill"></i> Jornada 1 • Secretaria & Coordenação</div>
+            <h2 class="slide-title">Matrícula Inteligente e Prontuário A4</h2>
+            <p class="slide-subtitle">
+                Formulário desenhado para agilizar o atendimento presencial das famílias em menos de 1 minuto, unindo o digital ao documento físico.
+            </p>
+
+            <div class="row g-4">
+                <div class="col-md-4">
+                    <div class="pres-card">
+                        <div class="icon-box icon-green"><i class="bi bi-geo-alt-fill"></i></div>
+                        <h5 class="fw-bold">Autopreenchimento ViaCEP & Máscaras</h5>
+                        <p class="text-muted small mb-0">
+                            Basta digitar os 8 números do CEP para preencher logradouro, bairro e cidade automaticamente. Telefones fixos e WhatsApp são formatados em tempo real.
+                        </p>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="pres-card">
+                        <div class="icon-box icon-orange"><i class="bi bi-heart-pulse-fill"></i></div>
+                        <h5 class="fw-bold">Prontuário Médico & Menores</h5>
+                        <p class="text-muted small mb-0">
+                            Registro destacado de alergias, medicamentos e contato de emergência. Para menores de 18 anos, exige identificação do responsável legal e consentimento LGPD.
+                        </p>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="pres-card">
+                        <div class="icon-box icon-blue"><i class="bi bi-printer-fill"></i></div>
+                        <h5 class="fw-bold">Ficha A4 Pronta para Assinatura</h5>
+                        <p class="text-muted small mb-0">
+                            Com um clique em <code>Ctrl + P</code>, o sistema gera uma folha A4 diagramada com cabeçalho institucional e linha de assinatura presencial dos pais.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ==========================================
+         SLIDE 5: JORNADA 2 - DIÁRIO DE CLASSE INTERATIVO
+         ========================================== -->
+    <section class="slide" data-notes="<strong>Jornada 2: A Experiência do Professor (2 min):</strong><br>• <em>Dica: Você pode clicar nos botões de Presente e Falta aqui mesmo no slide para mostrar como a barra de progresso se move!</em><br>• Explique que o professor faz a chamada pelo celular ou computador.<br>• Não recarrega a página (usa Fetch/AJAX): clicou em Presente ou Falta, a barra de progresso no topo atualiza na hora.<br>• Se o aluno trouxer atestado médico (PDF/Foto), o anexo converte automaticamente a falta em <strong>'Falta Justificada'</strong>.">
+        <div class="container-fluid">
+            <div class="slide-badge"><i class="bi bi-clipboard2-check-fill"></i> Jornada 2 • Sala de Aula</div>
+            <h2 class="slide-title">Diário de Classe Dinâmico (Zero Reload)</h2>
+            <p class="slide-subtitle mb-3">
+                Teste abaixo como funciona na prática: clique em <strong>Presente</strong> ou <strong>Falta</strong> e veja os indicadores responderem instantaneamente.
+            </p>
+
+            <div class="demo-card-Interactive p-4">
+                <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+                    <span class="fw-bold text-success"><i class="bi bi-bar-chart-Steps me-1"></i> Simulador ao Vivo da Barra de Chamada</span>
+                    <div class="d-flex gap-2 small">
+                        <span class="badge bg-success bg-opacity-10 text-success border border-success px-3 py-1 rounded-pill">
+                            Presentes: <strong id="simPres">1</strong>
+                        </span>
+                        <span class="badge bg-danger bg-opacity-10 text-danger border border-danger px-3 py-1 rounded-pill">
+                            Faltas: <strong id="simFalt">1</strong>
+                        </span>
+                        <span class="badge bg-warning bg-opacity-10 text-dark border border-warning px-3 py-1 rounded-pill">
+                            Justificadas: <strong>1</strong>
+                        </span>
+                    </div>
+                </div>
+                <div class="progress rounded-pill mb-4" style="height: 10px;">
+                    <div id="simBar" class="progress-bar bg-success" style="width: 100%; transition: width 0.3s;"></div>
+                </div>
+
+                <!-- Aluno 1 -->
+                <div class="d-flex flex-wrap justify-content-between align-items-center p-3 rounded-4 mb-2 border bg-light">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="avatar-circle">MS</div>
+                        <div>
+                            <div class="fw-bold">Maria Clara Santos <span id="badge1" class="badge bg-success ms-2">Presente</span></div>
+                            <div class="small text-muted">Turma: CORTE E COSTURA • Histórico: 95% presença</div>
+                        </div>
+                    </div>
+                    <div class="d-flex gap-2 mt-2 mt-md-0">
+                        <button class="btn btn-sm btn-success rounded-pill px-3 fw-bold" onclick="setStatus(1, 'P')"><i class="bi bi-check-lg"></i> Presente</button>
+                        <button class="btn btn-sm btn-outline-danger rounded-pill px-3 fw-bold" onclick="setStatus(1, 'F')"><i class="bi bi-x-lg"></i> Falta</button>
+                    </div>
+                </div>
+
+                <!-- Aluno 2 -->
+                <div class="d-flex flex-wrap justify-content-between align-items-center p-3 rounded-4 mb-2 border bg-light">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="avatar-circle" style="background:#b91c1c;">JO</div>
+                        <div>
+                            <div class="fw-bold">João Pedro Oliveira <span id="badge2" class="badge bg-danger ms-2">Falta (3ª Falta - Vaga em Risco)</span></div>
+                            <div class="small text-muted">Turma: VIOLÃO • Alerta automático enviado ao Dashboard</div>
+                        </div>
+                    </div>
+                    <div class="d-flex gap-2 mt-2 mt-md-0">
+                        <button class="btn btn-sm btn-outline-success rounded-pill px-3 fw-bold" onclick="setStatus(2, 'P')"><i class="bi bi-check-lg"></i> Presente</button>
+                        <button class="btn btn-sm btn-danger rounded-pill px-3 fw-bold" onclick="setStatus(2, 'F')"><i class="bi bi-x-lg"></i> Falta</button>
+                    </div>
+                </div>
+
+                <!-- Aluno 3 -->
+                <div class="d-flex flex-wrap justify-content-between align-items-center p-3 rounded-4 border bg-light">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="avatar-circle" style="background:#0284c7;">AL</div>
+                        <div>
+                            <div class="fw-bold">Ana Luiza Souza <span class="badge bg-info text-dark ms-2"><i class="bi bi-paperclip"></i> Falta Justificada com Atestado</span></div>
+                            <div class="small text-muted">Anexo PDF verificado • Não contabiliza como risco de perda de vaga</div>
+                        </div>
+                    </div>
+                    <div>
+                        <span class="badge bg-white text-secondary border px-3 py-2 rounded-pill"><i class="bi bi-file-earmark-medical text-primary me-1"></i> atestado_medico.pdf</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ==========================================
+         SLIDE 6: JORNADA 3 - COMBATE À EVASÃO & WHATSAPP
+         ========================================== -->
+    <section class="slide" data-notes="<strong>Jornada 3: O Coração Social do Projeto (2 min):</strong><br>• Este é o ponto alto para mostrar foco em produto!<br>• Quando um aluno acumula <strong>3 faltas injustificadas</strong>, o sistema aplica a regra da instituição: exibe o alerta <em>'Vaga Disponibilizada'</em>.<br>• Mas antes de simplesmente cortar o aluno, a coordenação tem um botão verde do <strong>WhatsApp</strong> no Dashboard.<br>• Ao clicar, já abre a conversa com o responsável com uma mensagem acolhedora e humanizada perguntando se está tudo bem com a família!">
+        <div class="container-fluid">
+            <div class="slide-badge"><i class="bi bi-whatsapp"></i> Jornada 3 • Retenção & Acolhimento</div>
+            <h2 class="slide-title">Alerta de Evasão e Busca Ativa via WhatsApp</h2>
+            <p class="slide-subtitle">
+                Mais do que apontar números, o Dashboard transforma dados de faltas em uma ação imediata e humanizada com a família do aluno.
+            </p>
+
+            <div class="row g-4 align-items-center">
+                <div class="col-lg-6">
+                    <div class="pres-card">
+                        <h5 class="fw-bold mb-3"><i class="bi bi-bell-fill text-danger me-2"></i>A Regra das 3 Faltas na Casa de Lió</h5>
+                        <ol class="list-group list-group-numbered list-group-flush">
+                            <li class="list-group-item border-0 ps-0">
+                                <strong>Monitoramento Automático:</strong> O sistema separa faltas comuns de faltas justificadas por atestado médico.
+                            </li>
+                            <li class="list-group-item border-0 ps-0">
+                                <strong>Sinalização de Vaga:</strong> Ao atingir 3 faltas sem justificativa, o aluno entra na lista vermelha de <em>"Vaga Disponibilizada"</em>.
+                            </li>
+                            <li class="list-group-item border-0 ps-0">
+                                <strong>Contato em 1 Clique:</strong> A coordenação aciona a família no WhatsApp sem precisar digitar telefone nem texto.
+                            </li>
+                        </ol>
+                    </div>
+                </div>
+
+                <div class="col-lg-6">
+                    <div class="pres-card" style="background: #efeae2; border: 2px solid #25D366;">
+                        <div class="d-flex align-items-center gap-2 mb-3 pb-2 border-bottom border-secondary border-opacity-25">
+                            <div class="rounded-circle d-flex align-items-center justify-content-center text-white fw-bold" style="width:40px; height:40px; background:#25D366;">
+                                <i class="bi bi-whatsapp fs-5"></i>
+                            </div>
+                            <div>
+                                <div class="fw-bold text-dark">Mensagem Automática Gerada pelo Sistema</div>
+                                <div class="small text-muted">Integração direta via API <code>wa.me</code></div>
+                            </div>
+                        </div>
+
+                        <div class="p-3 rounded-4 shadow-sm mb-3" style="background: #d9fdd3; color: #111b21; font-size: 0.98rem;">
+                            "Olá, notamos que o(a) <strong>João Pedro Oliveira</strong> faltou <strong>3 vezes</strong> na Casa de Lió. Está tudo bem com a família? Podemos ajudar?"
+                            <div class="text-end text-muted" style="font-size: 0.72rem;">15:20 <i class="bi bi-check2-all text-primary"></i></div>
+                        </div>
+
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="small text-dark fw-semibold"><i class="bi bi-filetype-csv text-success me-1"></i> Também exporta relatório completo em CSV (Excel)</span>
+                            <span class="badge bg-success rounded-pill px-3 py-2">Acolhimento Humanizado</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ==========================================
+         SLIDE 7: ÉTICA, SEGURANÇA E LGPD
+         ========================================== -->
+    <section class="slide" data-notes="<strong>Governança, Segurança e LGPD (1.5 min):</strong><br>• Mesmo sendo uma apresentação focada no produto, os professores adoram ver responsabilidade jurídica.<br>• Destaque 3 pontos simples:<br>1. <strong>Perfis Separados:</strong> Professor só vê a chamada das turmas dele; Coordenação vê tudo.<br>2. <strong>Atestados Protegidos:</strong> Ninguém abre um laudo médico sem estar logado.<br>3. <strong>Trilha de Auditoria e Direito ao Esquecimento:</strong> Tudo fica gravado no painel de Auditoria, e se excluir um aluno, apaga os dados e os arquivos médicos de verdade.">
+        <div class="container-fluid">
+            <div class="slide-badge"><i class="bi bi-shield-lock-fill"></i> Ética & Responsabilidade Legal</div>
+            <h2 class="slide-title">Proteção de Menores e Conformidade LGPD</h2>
+            <p class="slide-subtitle">
+                Por lidar com crianças, adolescentes e laudos de saúde (Lei nº 13.709/2018), a privacidade foi construída como parte da experiência do produto.
+            </p>
+
+            <div class="row g-4">
+                <div class="col-md-6 col-lg-3">
+                    <div class="pres-card">
+                        <div class="icon-box icon-green"><i class="bi bi-person-check-fill"></i></div>
+                        <h6 class="fw-bold">Art. 14 • Menores de Idade</h6>
+                        <p class="text-muted small mb-0">
+                            Coleta obrigatória de consentimento específico dos pais com gravação da data e hora exatas (timestamp ISO) no banco de dados.
+                        </p>
+                    </div>
+                </div>
+                <div class="col-md-6 col-lg-3">
+                    <div class="pres-card">
+                        <div class="icon-box icon-blue"><i class="bi bi-Lock-fill"></i></div>
+                        <h6 class="fw-bold">Art. 5º • Saúde Protegida</h6>
+                        <p class="text-muted small mb-0">
+                            Laudos e atestados não ficam em pastas públicas abertas: exigem sessão autenticada e contam com suporte a armazenamento em nuvem S3/MinIO.
+                        </p>
+                    </div>
+                </div>
+                <div class="col-md-6 col-lg-3">
+                    <div class="pres-card">
+                        <div class="icon-box icon-orange"><i class="bi bi-journal-text"></i></div>
+                        <h6 class="fw-bold">Art. 37 • Painel de Auditoria</h6>
+                        <p class="text-muted small mb-0">
+                            Tela exclusiva da coordenação que registra quem cadastrou, quem editou, quem anexou laudo e quando ocorreu cada operação.
+                        </p>
+                    </div>
+                </div>
+                <div class="col-md-6 col-lg-3">
+                    <div class="pres-card">
+                        <div class="icon-box icon-red"><i class="bi bi-trash3-fill"></i></div>
+                        <h6 class="fw-bold">Art. 18 • Esquecimento</h6>
+                        <p class="text-muted small mb-0">
+                            Ao encerrar o vínculo e excluir o registro de um aluno, o sistema elimina em cascata seu histórico e remove os arquivos físicos do servidor.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ==========================================
+         SLIDE 8: DEMONSTRAÇÃO AO VIVO E ENCERRAMENTO
+         ========================================== -->
+    <section class="slide slide-hero" data-notes="<strong>Hora da Demonstração ao Vivo (3 a 4 min):</strong><br>• Clique no botão <strong>'Abrir Sistema para Demonstração'</strong> aqui na tela.<br>• <strong>Passo 1:</strong> Entre com <code>coord</code> / <code>123</code>.<br>• <strong>Passo 2:</strong> Mostre os Cards das 20 Turmas e a barra de lotação.<br>• <strong>Passo 3:</strong> Faça a chamada de 2 alunos ao vivo e mostre a barra de progresso subindo sem recarregar a tela.<br>• <strong>Passo 4:</strong> Abra o Dashboard, mostre o gráfico e clique no botão do WhatsApp.<br>• <strong>Passo 5:</strong> Mostre a Ficha A4 de impressão e o Painel de Auditoria LGPD. Abra para perguntas!">
+        <div class="container-fluid">
+            <div class="slide-badge">
+                <i class="bi bi-play-circle-fill text-warning"></i> Demonstração Prática (Live Demo)
+            </div>
+            <h2 class="slide-title mb-3">Vamos ver a Casa de Lió em ação!</h2>
+            <p class="slide-subtitle mb-4">
+                Roteiro rápido de 4 passos para demonstrar todas as entregas do projeto funcionando ao vivo no navegador:
+            </p>
+
+            <div class="row g-3 mb-5">
+                <div class="col-md-3">
+                    <div class="p-3 rounded-4 h-100" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);">
+                        <span class="badge bg-warning text-dark mb-2">Passo 1</span>
+                        <h6 class="fw-bold text-white">Painel de Turmas</h6>
+                        <p class="small text-white-50 mb-0">Visualizar as 20 oficinas, limites de vagas e vínculo de professores.</p>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="p-3 rounded-4 h-100" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);">
+                        <span class="badge bg-warning text-dark mb-2">Passo 2</span>
+                        <h6 class="fw-bold text-white">Matrícula + Ficha A4</h6>
+                        <p class="small text-white-50 mb-0">Testar o autopreenchimento de CEP e abrir a folha A4 pronta para impressão.</p>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="p-3 rounded-4 h-100" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);">
+                        <span class="badge bg-warning text-dark mb-2">Passo 3</span>
+                        <h6 class="fw-bold text-white">Chamada Instantânea</h6>
+                        <p class="small text-white-50 mb-0">Marcar presenças/faltas em tempo real e anexar um atestado médico.</p>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="p-3 rounded-4 h-100" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);">
+                        <span class="badge bg-warning text-dark mb-2">Passo 4</span>
+                        <h6 class="fw-bold text-white">Dashboard & Auditoria</h6>
+                        <p class="small text-white-50 mb-0">Acionar o alerta de WhatsApp para alunos com 3+ faltas e ver os logs LGPD.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="d-flex flex-wrap gap-3 align-items-center">
+                <a href="http://localhost:8000" target="_blank" class="btn-orange shadow-lg fs-5 px-4 py-3 text-decoration-none">
+                    <i class="bi bi-rocket-takeoff-fill me-2"></i> Abrir Sistema para Demonstração
+                </a>
+                <div class="px-4 py-2 rounded-pill small" style="background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.2);">
+                    <i class="bi bi-key-fill text-warning me-1"></i> Login Demo: <strong>coord</strong> | Senha: <strong>123</strong> (ou <strong>prof</strong> / <strong>123</strong>)
+                </div>
+            </div>
+        </div>
+    </section>
+
+</div>
+
+<!-- Gaveta de Notas do Apresentador (Atalho: Tecla N) -->
+<div id="speakerNotes" class="speaker-notes-drawer">
+    <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom border-secondary">
+        <span class="fw-bold text-warning small text-uppercase"><i class="bi bi-mic-fill me-1"></i> Roteiro de Fala deste Slide</span>
+        <button class="btn btn-sm text-white-50 p-0" onclick="toggleNotes()"><i class="bi bi-x-lg"></i></button>
+    </div>
+    <div id="speakerNotesContent" class="small lh-base"></div>
+</div>
+
+<!-- Barra de Progresso -->
+<div class="progress-track">
+    <div id="slideProgress" class="progress-fill"></div>
+</div>
+
+<!-- Barra de Navegação Inferior -->
+<footer class="bottom-nav">
+    <div class="d-flex align-items-center gap-2">
+        <span class="fw-bold" style="color: var(--verde-adra);"><i class="bi bi-mortarboard-fill me-1"></i> Casa de Lió (ADRA)</span>
+        <span class="text-muted small d-none d-md-inline">• Apresentação de Projeto</span>
+    </div>
+
+    <div class="d-flex align-items-center gap-2">
+        <button class="btn btn-sm btn-outline-secondary rounded-pill px-3" onclick="prevSlide()" title="Slide Anterior (Seta Esquerda)">
+            <i class="bi bi-chevron-left"></i> Anterior
+        </button>
+        <span id="slideCounter" class="fw-bold px-2 small text-muted">1 / 8</span>
+        <button class="btn btn-sm btn-adra rounded-pill px-3" onclick="nextSlide()" title="Próximo Slide (Seta Direita ou Espaço)">
+            Próximo <i class="bi bi-chevron-right"></i>
+        </button>
+    </div>
+
+    <div class="d-flex align-items-center gap-2">
+        <button class="btn btn-sm btn-outline-dark rounded-pill px-3 fw-semibold" onclick="toggleNotes()" title="Atalho: Tecla N">
+            <i class="bi bi-card-text me-1"></i> Cola de Fala (N)
+        </button>
+        <button class="btn btn-sm btn-light border rounded-circle" onclick="toggleFullScreen()" title="Tela Cheia (Tecla F)">
+            <i class="bi bi-arrows-fullscreen"></i>
+        </button>
+    </div>
+</footer>
+
+<script>
+    const slides = document.querySelectorAll('.slide');
+    const counterEl = document.getElementById('slideCounter');
+    const progressEl = document.getElementById('slideProgress');
+    const notesDrawer = document.getElementById('speakerNotes');
+    const notesContent = document.getElementById('speakerNotesContent');
+    let currentSlide = 0;
+
+    function updateSlide() {
+        slides.forEach((s, idx) => {
+            s.classList.toggle('active', idx === currentSlide);
+        });
+        counterEl.textContent = `${currentSlide + 1} / ${slides.length}`;
+        const pct = ((currentSlide + 1) / slides.length) * 100;
+        progressEl.style.width = `${pct}%`;
+        notesContent.innerHTML = slides[currentSlide].getAttribute('data-notes') || '';
+    }
+
+    function nextSlide() {
+        if (currentSlide < slides.length - 1) {
+            currentSlide++;
+            updateSlide();
+        }
+    }
+
+    function prevSlide() {
+        if (currentSlide > 0) {
+            currentSlide--;
+            updateSlide();
+        }
+    }
+
+    function toggleNotes() {
+        notesDrawer.classList.toggle('show');
+    }
+
+    function toggleFullScreen() {
+        if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen().catch(() => {});
+        } else {
+            document.exitFullscreen();
+        }
+    }
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowRight' || e.key === ' ') {
+            e.preventDefault();
+            nextSlide();
+        } else if (e.key === 'ArrowLeft') {
+            e.preventDefault();
+            prevSlide();
+        } else if (e.key.toLowerCase() === 'n') {
+            toggleNotes();
+        } else if (e.key.toLowerCase() === 'f') {
+            toggleFullScreen();
+        }
+    });
+
+    // Simulador interativo do Slide 5
+    const simState = { 1: 'P', 2: 'F' };
+    function setStatus(id, st) {
+        simState[id] = st;
+        const badge = document.getElementById('badge' + id);
+        if (st === 'P') {
+            badge.className = 'badge bg-success ms-2';
+            badge.textContent = 'Presente';
+        } else {
+            badge.className = 'badge bg-danger ms-2';
+            badge.textContent = id === 2 ? 'Falta (3ª Falta - Vaga em Risco)' : 'Falta';
+        }
+        const totalP = Object.values(simState).filter(v => v === 'P').length;
+        const totalF = Object.values(simState).filter(v => v === 'F').length;
+        document.getElementById('simPres').textContent = totalP;
+        document.getElementById('simFalt').textContent = totalF;
+    }
+
+    updateSlide();
+</script>
+</body>
+</html>

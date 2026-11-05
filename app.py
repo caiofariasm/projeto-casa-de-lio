@@ -78,16 +78,238 @@ async def visualizar_atestado(request: Request, nome_arquivo: str):
         return FileResponse(str(caminho), headers={"Content-Disposition": f'attachment; filename="{nome_arquivo}"', "X-Content-Type-Options": "nosniff"})
     return Response("Arquivo não encontrado", status_code=404)
 
+def _obter_database_url() -> str:
+    url = os.getenv("DATABASE_URL", "").strip()
+    if url.startswith("postgres://"):
+        url = "postgresql://" + url[len("postgres://"):]
+    return url
+
+
+class _RowCompat(dict):
+    """Compatível tanto com row['coluna'] quanto com row[0] e dict(row), igual ao sqlite3.Row."""
+    def __getitem__(self, key):
+        if isinstance(key, int):
+            return list(self.values())[key]
+        return super().__getitem__(key)
+
+
+class _PostgresCursorWrapper:
+    def __init__(self, raw_cursor):
+        self._cur = raw_cursor
+        self.lastrowid = None
+
+    def _traduzir_sql(self, sql: str) -> tuple[str, bool]:
+        s = sql.strip()
+        if s.upper() == "BEGIN IMMEDIATE":
+            return "BEGIN", False
+        # Converte INSERT OR IGNORE do SQLite para ON CONFLICT DO NOTHING do Postgres
+        if "INSERT OR IGNORE INTO professor_turmas" in s:
+            s = s.replace("INSERT OR IGNORE INTO", "INSERT INTO").rstrip(";") + " ON CONFLICT (usuario_id, turma_nome) DO NOTHING"
+        elif "INSERT OR IGNORE INTO turmas" in s:
+            s = s.replace("INSERT OR IGNORE INTO", "INSERT INTO").rstrip(";") + " ON CONFLICT (nome) DO NOTHING"
+        s = s.replace("COLLATE NOCASE", "")
+        s = s.replace("?", "%s")
+        upper = s.upper()
+        precisa_returning = (
+            upper.startswith("INSERT INTO ALUNOS")
+            or upper.startswith("INSERT INTO USUARIOS")
+            or upper.startswith("INSERT INTO TURMAS")
+        ) and "ON CONFLICT" not in upper and "RETURNING" not in upper
+        if precisa_returning:
+            s = s.rstrip(";") + " RETURNING id"
+        return s, precisa_returning
+
+    def execute(self, sql: str, params=()):
+        sql_pg, precisa_returning = self._traduzir_sql(sql)
+        try:
+            self._cur.execute(sql_pg, tuple(params) if params else None)
+        except Exception as e:
+            if e.__class__.__name__ in ("IntegrityError", "UniqueViolation", "ForeignKeyViolation", "CheckViolation"):
+                raise sqlite3.IntegrityError(str(e)) from e
+            raise
+        if precisa_returning:
+            row = self._cur.fetchone()
+            self.lastrowid = row[0] if row else None
+        return self
+
+    def fetchone(self):
+        row = self._cur.fetchone()
+        if row is None:
+            return None
+        cols = [d[0] for d in self._cur.description]
+        return _RowCompat(zip(cols, row))
+
+    def fetchall(self):
+        rows = self._cur.fetchall()
+        if not rows:
+            return []
+        cols = [d[0] for d in self._cur.description]
+        return [_RowCompat(zip(cols, r)) for r in rows]
+
+
+class _PostgresConnWrapper:
+    def __init__(self, raw_conn):
+        self._conn = raw_conn
+
+    def cursor(self):
+        return _PostgresCursorWrapper(self._conn.cursor())
+
+    def execute(self, sql: str, params=()):
+        cur = self.cursor()
+        return cur.execute(sql, params)
+
+    def commit(self):
+        self._conn.commit()
+
+    def rollback(self):
+        self._conn.rollback()
+
+    def close(self):
+        self._conn.close()
+
+
 def pegar_conexao():
+    db_url = _obter_database_url()
+    if db_url:
+        import psycopg2
+        raw_conn = psycopg2.connect(db_url)
+        return _PostgresConnWrapper(raw_conn)
     conexao = sqlite3.connect(str(DB_PATH))
     conexao.row_factory = sqlite3.Row
     conexao.execute("PRAGMA foreign_keys = ON")
     conexao.execute("PRAGMA busy_timeout = 5000")
     return conexao
 
+
 def migrar_banco_se_necessario():
+    db_url = _obter_database_url()
     conexao = pegar_conexao()
     cursor = conexao.cursor()
+
+    if db_url:
+        # Esquema completo para PostgreSQL (Neon / Supabase / Render)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS alunos (
+                id SERIAL PRIMARY KEY,
+                nome TEXT NOT NULL,
+                turma TEXT NOT NULL,
+                data_nascimento TEXT,
+                telefone TEXT,
+                cep TEXT,
+                rua TEXT,
+                numero TEXT,
+                bairro TEXT,
+                cidade TEXT,
+                referencia TEXT,
+                contato_emergencia TEXT,
+                telefone_emergencia TEXT,
+                condicao_medica TEXT,
+                nome_responsavel TEXT,
+                autorizacao_pais INTEGER,
+                consentimento_lgpd INTEGER DEFAULT 0,
+                data_consentimento TEXT
+            )
+        ''')
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS presencas (
+                id SERIAL PRIMARY KEY,
+                aluno_id INTEGER REFERENCES alunos(id) ON DELETE CASCADE,
+                data TEXT NOT NULL,
+                status TEXT NOT NULL,
+                atestado TEXT
+            )
+        ''')
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS usuarios (
+                id SERIAL PRIMARY KEY,
+                login TEXT UNIQUE NOT NULL,
+                senha TEXT NOT NULL,
+                perfil TEXT NOT NULL
+            )
+        ''')
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS logs_auditoria (
+                id SERIAL PRIMARY KEY,
+                usuario TEXT NOT NULL,
+                acao TEXT NOT NULL,
+                alvo TEXT,
+                data_hora TEXT NOT NULL
+            )
+        ''')
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS turmas (
+                id SERIAL PRIMARY KEY,
+                nome TEXT UNIQUE NOT NULL,
+                descricao TEXT,
+                limite_alunos INTEGER CHECK (limite_alunos IS NULL OR limite_alunos > 0)
+            )
+        ''')
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS professor_turmas (
+                id SERIAL PRIMARY KEY,
+                usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+                turma_nome TEXT NOT NULL,
+                UNIQUE(usuario_id, turma_nome)
+            )
+        ''')
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_presencas_aluno_data ON presencas(aluno_id, data)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_alunos_turma ON alunos(turma)")
+        cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS uq_presencas_aluno_data ON presencas(aluno_id, data)")
+
+        # Garante que o usuário coord exista no banco na nuvem
+        coord_existe = cursor.execute("SELECT id FROM usuarios WHERE login = ?", ("coord",)).fetchone()
+        if not coord_existe:
+            senha_inicial = os.getenv("BOOTSTRAP_ADMIN_PASSWORD", "").strip() or "123"
+            senha_hash = bcrypt.hashpw(senha_inicial.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+            cursor.execute(
+                "INSERT INTO usuarios (login, senha, perfil) VALUES (?, ?, ?)",
+                ("coord", senha_hash, "coordenacao"),
+            )
+        conexao.commit()
+        conexao.close()
+        return
+
+    # Migração para SQLite local
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS alunos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome TEXT NOT NULL,
+            turma TEXT NOT NULL,
+            data_nascimento TEXT,
+            telefone TEXT,
+            cep TEXT,
+            rua TEXT,
+            numero TEXT,
+            bairro TEXT,
+            cidade TEXT,
+            referencia TEXT,
+            contato_emergencia TEXT,
+            telefone_emergencia TEXT,
+            condicao_medica TEXT,
+            nome_responsavel TEXT,
+            autorizacao_pais INTEGER,
+            consentimento_lgpd INTEGER DEFAULT 0,
+            data_consentimento TEXT
+        )
+    ''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS presencas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            aluno_id INTEGER,
+            data TEXT NOT NULL,
+            status TEXT NOT NULL,
+            atestado TEXT,
+            FOREIGN KEY (aluno_id) REFERENCES alunos (id)
+        )
+    ''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS usuarios (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            login TEXT UNIQUE NOT NULL,
+            senha TEXT NOT NULL,
+            perfil TEXT NOT NULL
+        )
+    ''')
     # 1. Tabela de logs de auditoria (Conformidade LGPD)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS logs_auditoria (
@@ -138,7 +360,7 @@ def migrar_banco_se_necessario():
 
     # Sincroniza eventuais turmas já vinculadas a alunos cadastrados
     turmas_existentes = cursor.execute(
-        'SELECT DISTINCT turma FROM alunos WHERE turma IS NOT NULL AND turma != ""'
+        "SELECT DISTINCT turma FROM alunos WHERE turma IS NOT NULL AND turma != ''"
     ).fetchall()
     for row in turmas_existentes:
         cursor.execute("INSERT OR IGNORE INTO turmas (nome, descricao) VALUES (?, ?)", (row['turma'], 'Turma Cadastrada'))
@@ -149,11 +371,26 @@ def migrar_banco_se_necessario():
 # Executa migração na inicialização
 migrar_banco_se_necessario()
 
+
+@app.get("/health")
+async def health_check():
+    """Rota leve para manter o servidor Render e o banco Supabase acordados (anti-repouso)."""
+    conexao = None
+    try:
+        conexao = pegar_conexao()
+        conexao.execute("SELECT 1").fetchone()
+        return {"status": "ok"}
+    except Exception:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+    finally:
+        if conexao:
+            conexao.close()
+
 def obter_todas_turmas(conexao) -> list[str]:
     turmas_db = conexao.execute('''
         SELECT nome FROM turmas
         UNION
-        SELECT DISTINCT turma as nome FROM alunos WHERE turma IS NOT NULL AND turma != ""
+        SELECT DISTINCT turma as nome FROM alunos WHERE turma IS NOT NULL AND turma != ''
         ORDER BY nome ASC
     ''').fetchall()
     return [t['nome'] for t in turmas_db]
@@ -358,8 +595,8 @@ async def dashboard(request: Request, pagina_risco: int = 1):
         FROM presencas
         JOIN alunos ON presencas.aluno_id = alunos.id
         WHERE presencas.status = 'Falta'
-        GROUP BY alunos.id
-        ORDER BY total_faltas DESC, alunos.nome COLLATE NOCASE ASC, alunos.id ASC
+        GROUP BY alunos.id, alunos.nome, alunos.turma, alunos.telefone
+        ORDER BY total_faltas DESC, LOWER(alunos.nome) ASC, alunos.id ASC
         LIMIT ? OFFSET ?
     ''', (itens_por_pagina_risco, deslocamento_risco)).fetchall()
     
