@@ -443,7 +443,44 @@ def registrar_auditoria(usuario: str, acao: str, alvo: str = None):
         if conexao:
             conexao.close()
 
-# --- UTILITÁRIOS DE CRIPTOGRAFIA & JWT ---
+# --- UTILITÁRIOS DE CRIPTOGRAFIA, SENHA FORTE & JWT ---
+SENHAS_COMUNS_BLOQUEADAS = {
+    "12345678", "123456789", "1234567890", "password", "password1", "password123",
+    "senha123", "senha@123", "admin123", "admin@123", "qwerty123", "qwertyuiop",
+    "casadelio", "adra1234", "professor", "coordenacao"
+}
+
+def validar_senha_forte(senha: str, login: str = "") -> tuple[bool, str]:
+    """
+    Valida a força da senha segundo padrões internacionais (OWASP ASVS / NIST SP 800-63B):
+    - Mínimo de 8 e máximo de 128 caracteres;
+    - Pelo menos 1 letra maiúscula (A-Z);
+    - Pelo menos 1 letra minúscula (a-z);
+    - Pelo menos 1 número (0-9);
+    - Pelo menos 1 caractere especial (!@#$%^&*...);
+    - Bloqueio de senhas comuns vazadas ou idênticas ao login.
+    """
+    if not senha or len(senha) < 8:
+        return False, "A senha deve ter no mínimo 8 caracteres."
+    if len(senha) > 128:
+        return False, "A senha deve ter no máximo 128 caracteres."
+    if not re.search(r"[A-Z]", senha):
+        return False, "A senha deve conter pelo menos uma letra maiúscula (A-Z)."
+    if not re.search(r"[a-z]", senha):
+        return False, "A senha deve conter pelo menos uma letra minúscula (a-z)."
+    if not re.search(r"\d", senha):
+        return False, "A senha deve conter pelo menos um número (0-9)."
+    if not re.search(r"[^A-Za-z0-9\s]", senha):
+        return False, "A senha deve conter pelo menos um caractere especial (ex: @, #, $, !, %, *)."
+    
+    senha_limpa = re.sub(r"[^a-z0-9]", "", senha.lower())
+    if senha.lower() in SENHAS_COMUNS_BLOQUEADAS or senha_limpa in SENHAS_COMUNS_BLOQUEADAS:
+        return False, "Esta senha é muito comum e fácil de adivinhar. Escolha uma combinação mais segura."
+    if login and len(login.strip()) >= 3 and login.strip().lower() in senha.lower():
+        return False, "Por segurança, a senha não pode conter o nome de usuário (login)."
+    
+    return True, ""
+
 def hash_senha(senha: str) -> str:
     return bcrypt.hashpw(senha.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
 
@@ -808,6 +845,60 @@ async def registrar(request: Request, aluno_id: int, data_chamada: str, status: 
         url += f"&turma={turma}"
     return RedirectResponse(url=url, status_code=303)
 
+
+@app.post("/registrar_todos_presentes/{data_chamada}")
+async def registrar_todos_presentes(request: Request, data_chamada: str, turma: str = None):
+    usuario = obter_usuario_atual(request)
+    if not usuario:
+        return RedirectResponse(url="/login", status_code=303)
+
+    try:
+        datetime.strptime(data_chamada, "%Y-%m-%d")
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Data inválida")
+
+    conexao = pegar_conexao()
+    turmas_perm = obter_turmas_permitidas(conexao, usuario)
+
+    if turma:
+        if turma not in turmas_perm:
+            conexao.close()
+            return RedirectResponse(url="/", status_code=303)
+        alunos_alvo = conexao.execute("SELECT id FROM alunos WHERE turma = ?", (turma,)).fetchall()
+    elif usuario['perfil'] != 'coordenacao':
+        if not turmas_perm:
+            conexao.close()
+            return RedirectResponse(url="/", status_code=303)
+        placeholders = ','.join(['?'] * len(turmas_perm))
+        alunos_alvo = conexao.execute(f"SELECT id FROM alunos WHERE turma IN ({placeholders})", turmas_perm).fetchall()
+    else:
+        alunos_alvo = conexao.execute("SELECT id FROM alunos").fetchall()
+
+    for row in alunos_alvo:
+        aid = row['id']
+        existe = conexao.execute(
+            "SELECT id, status, atestado FROM presencas WHERE aluno_id = ? AND data = ?",
+            (aid, data_chamada),
+        ).fetchone()
+        if existe:
+            # Preserva falta justificada que já possua atestado médico anexado
+            if existe['atestado'] and existe['status'] == 'Falta justificada':
+                continue
+            conexao.execute("UPDATE presencas SET status = ? WHERE id = ?", ("Presente", existe['id']))
+        else:
+            conexao.execute(
+                "INSERT INTO presencas (aluno_id, data, status) VALUES (?, ?, ?)",
+                (aid, data_chamada, "Presente"),
+            )
+
+    conexao.commit()
+    conexao.close()
+
+    url = f"/?data_chamada={data_chamada}"
+    if turma:
+        url += f"&turma={turma}"
+    return RedirectResponse(url=url, status_code=303)
+
 @app.get("/exportar")
 async def exportar(request: Request, mes: str = None, turma: str = None):
     usuario = obter_usuario_atual(request)
@@ -937,7 +1028,7 @@ async def gerar_ficha(request: Request, aluno_id: int):
     return templates.TemplateResponse(request=request, name="ficha.html", context={"aluno": aluno})
 
 @app.get("/usuarios/novo", response_class=HTMLResponse)
-async def tela_novo_usuario(request: Request, sucesso: str = None):
+async def tela_novo_usuario(request: Request, sucesso: str = None, erro: str = None):
     # Proteção estrita: Apenas a coordenação pode aceder
     usuario = obter_usuario_atual(request)
     if not usuario or usuario['perfil'] != 'coordenacao':
@@ -968,7 +1059,8 @@ async def tela_novo_usuario(request: Request, sucesso: str = None):
             "turmas_disponiveis": turmas_disponiveis,
             "professores": professores,
             "usuarios_sistema": usuarios_sistema,
-            "sucesso": sucesso
+            "sucesso": sucesso,
+            "erro": erro
         }
     )
 
@@ -983,13 +1075,15 @@ async def alterar_senha_usuario(request: Request):
     usuario_id = formulario.get('usuario_id')
     nova_senha = (formulario.get('nova_senha') or '').strip()
 
-    if nova_senha and len(nova_senha) < 12 and not ALLOW_WEAK_DEV_PASSWORDS:
-        raise HTTPException(status_code=422, detail="A nova senha deve ter ao menos 12 caracteres")
-
     if usuario_id and nova_senha:
         conexao = pegar_conexao()
         alvo = conexao.execute("SELECT id, login, perfil FROM usuarios WHERE id = ?", (int(usuario_id),)).fetchone()
         if alvo:
+            senha_valida, _ = validar_senha_forte(nova_senha, alvo['login'])
+            if not senha_valida:
+                conexao.close()
+                return RedirectResponse(url="/usuarios/novo?erro=senha_fraca", status_code=303)
+
             senha_hasheada = hash_senha(nova_senha)
             conexao.execute("UPDATE usuarios SET senha = ? WHERE id = ?", (senha_hasheada, int(usuario_id)))
             conexao.commit()
@@ -1014,8 +1108,12 @@ async def salvar_usuario(request: Request):
     login = (formulario.get('login') or '').strip()
     senha = formulario.get('senha') or ''
     perfil = formulario.get('perfil')
-    if not login or len(login) > 80 or (len(senha) < 12 and not ALLOW_WEAK_DEV_PASSWORDS) or perfil not in {"professor", "coordenacao"}:
-        raise HTTPException(status_code=422, detail="Informe login, senha válida para o ambiente e perfil válido")
+    if not login or len(login) > 80 or perfil not in {"professor", "coordenacao"}:
+        raise HTTPException(status_code=422, detail="Informe login e perfil válidos")
+
+    senha_valida, _ = validar_senha_forte(senha, login)
+    if not senha_valida:
+        return RedirectResponse(url="/usuarios/novo?erro=senha_fraca", status_code=303)
     if hasattr(formulario, 'getlist'):
         turmas_selecionadas = formulario.getlist('turmas')
     else:

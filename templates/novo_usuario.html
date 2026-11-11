@@ -5,10 +5,13 @@
     .turma-lista .list-group-item { cursor: pointer; padding: .55rem .75rem; }
     .turma-lista .list-group-item:hover { background-color: #f4f7fb; }
     .professor-lista { max-height: 11rem; overflow-y: auto; }
+    .req-item { font-size: 0.82rem; transition: color 0.2s ease; color: #6c757d; }
+    .req-item.valido { color: #198754; font-weight: 600; }
+    .req-item .req-icon { display: inline-block; width: 1.1rem; font-weight: bold; }
 </style>
 {% if sucesso == 'senha' %}
 <div class="alert alert-success alert-dismissible fade show rounded-4 shadow-sm border-0 mt-3 mb-3 px-4 py-3" role="alert">
-    <strong>Senha atualizada com sucesso!</strong> O usuário já pode acessar o sistema utilizando a nova senha.
+    <strong>Senha atualizada com sucesso!</strong> O usuário já pode acessar o sistema utilizando a nova senha forte.
     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fechar"></button>
 </div>
 {% elif sucesso == 'turmas' %}
@@ -19,6 +22,12 @@
 {% elif sucesso == 'login_existente' %}
 <div class="alert alert-danger alert-dismissible fade show rounded-4 shadow-sm border-0 mt-3 mb-3 px-4 py-3" role="alert">
     <strong>Erro:</strong> Este nome de usuário (login) já está cadastrado no sistema.
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fechar"></button>
+</div>
+{% endif %}
+{% if erro == 'senha_fraca' %}
+<div class="alert alert-danger alert-dismissible fade show rounded-4 shadow-sm border-0 mt-3 mb-3 px-4 py-3" role="alert">
+    <strong>Senha não atende aos padrões de segurança!</strong> Por favor, utilize uma senha com pelo menos 8 caracteres, incluindo letras maiúsculas, minúsculas, números e símbolos especiais (ex: <code>@</code>, <code>#</code>, <code>$</code>, <code>!</code>), sem conter o nome de usuário.
     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fechar"></button>
 </div>
 {% endif %}
@@ -44,16 +53,40 @@
             </div>
             
             <div class="card-body p-4 p-md-5">
-                <form action="/usuarios/novo" method="POST">
+                <form action="/usuarios/novo" method="POST" id="formNovoUsuario">
                     
                     <div class="mb-4">
                         <label class="form-label fw-semibold text-muted">Nome de Usuário (Login)</label>
-                        <input type="text" name="login" class="form-control bg-light border-0" placeholder="Ex: prof.maria" required>
+                        <input type="text" name="login" id="inputLoginCriar" class="form-control bg-light border-0" placeholder="Ex: prof.maria" required>
                     </div>
                     
                     <div class="mb-4">
-                        <label class="form-label fw-semibold text-muted">Senha</label>
-                        <input type="password" name="senha" class="form-control bg-light border-0" required>
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <label class="form-label fw-semibold text-muted mb-0">Senha Forte</label>
+                            <button type="button" class="btn btn-sm btn-link text-decoration-none p-0 fw-semibold" onclick="gerarSenhaForte('inputSenhaCriar', 'btnToggleCriar')">
+                                ✨ Gerar Senha Forte
+                            </button>
+                        </div>
+                        <div class="input-group">
+                            <input type="password" name="senha" id="inputSenhaCriar" class="form-control bg-light border-0" placeholder="Mínimo de 8 caracteres com letras, números e símbolos" required>
+                            <button type="button" id="btnToggleCriar" class="btn btn-outline-secondary border-0 bg-light fw-semibold" onclick="alternarVisibilidadeInput('inputSenhaCriar', 'btnToggleCriar')">
+                                Mostrar
+                            </button>
+                        </div>
+                        <div class="progress mt-2" style="height: 6px; border-radius: 999px;">
+                            <div id="barraForcaCriar" class="progress-bar bg-danger" role="progressbar" style="width: 0%; transition: width 0.25s ease;"></div>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center mt-1 mb-2">
+                            <small class="text-muted" style="font-size: 0.76rem;">Padrão Internacional OWASP / NIST</small>
+                            <small id="textoForcaCriar" class="fw-bold text-muted" style="font-size: 0.78rem;">Digite uma senha</small>
+                        </div>
+                        <div class="p-2 px-3 bg-light rounded-3 border" id="checklistCriar">
+                            <div class="req-item" data-req="len"><span class="req-icon">○</span> Mínimo de 8 caracteres</div>
+                            <div class="req-item" data-req="upper"><span class="req-icon">○</span> Pelo menos 1 letra maiúscula (A-Z)</div>
+                            <div class="req-item" data-req="lower"><span class="req-icon">○</span> Pelo menos 1 letra minúscula (a-z)</div>
+                            <div class="req-item" data-req="num"><span class="req-icon">○</span> Pelo menos 1 número (0-9)</div>
+                            <div class="req-item" data-req="spec"><span class="req-icon">○</span> Pelo menos 1 símbolo especial (!@#$%...)</div>
+                        </div>
                     </div>
                     
                     <div class="mb-4">
@@ -94,7 +127,7 @@
                     </div>
                     
                     <div class="d-grid gap-2">
-                        <button type="submit" class="btn btn-success btn-lg rounded-pill fw-bold text-white shadow-sm">
+                        <button type="submit" id="btnSubmitCriar" class="btn btn-success btn-lg rounded-pill fw-bold text-white shadow-sm" disabled>
                             Criar Conta
                         </button>
                         <a href="/turmas" class="btn btn-outline-primary rounded-pill fw-bold mt-2">
@@ -175,7 +208,7 @@
                 <small class="text-muted">Redefina a senha de qualquer professor ou membro da coordenação</small>
             </div>
             <div class="card-body p-4">
-                <form action="/usuarios/alterar_senha" method="POST">
+                <form action="/usuarios/alterar_senha" method="POST" id="formAlterarSenha">
                     <div class="mb-3">
                         <label class="form-label fw-semibold text-muted small">Selecione o Usuário</label>
                         <select name="usuario_id" class="form-select bg-light border-0" required>
@@ -188,16 +221,35 @@
                         </select>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label fw-semibold text-muted small">Nova Senha</label>
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <label class="form-label fw-semibold text-muted small mb-0">Nova Senha Forte</label>
+                            <button type="button" class="btn btn-sm btn-link text-decoration-none p-0 fw-semibold" onclick="gerarSenhaForte('inputNovaSenha', 'btnToggleNovaSenha')">
+                                ✨ Gerar Senha Forte
+                            </button>
+                        </div>
                         <div class="input-group">
-                            <input type="password" name="nova_senha" id="inputNovaSenha" class="form-control bg-light border-0" placeholder="Digite a nova senha..." required>
-                            <button type="button" class="btn btn-outline-secondary border-0 bg-light" onclick="alternarVisibilidadeSenha()">
+                            <input type="password" name="nova_senha" id="inputNovaSenha" class="form-control bg-light border-0" placeholder="Digite a nova senha forte..." required>
+                            <button type="button" id="btnToggleNovaSenha" class="btn btn-outline-secondary border-0 bg-light fw-semibold" onclick="alternarVisibilidadeInput('inputNovaSenha', 'btnToggleNovaSenha')">
                                 Mostrar
                             </button>
                         </div>
+                        <div class="progress mt-2" style="height: 6px; border-radius: 999px;">
+                            <div id="barraForcaTrocar" class="progress-bar bg-danger" role="progressbar" style="width: 0%; transition: width 0.25s ease;"></div>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center mt-1 mb-2">
+                            <small class="text-muted" style="font-size: 0.76rem;">Padrão Internacional OWASP / NIST</small>
+                            <small id="textoForcaTrocar" class="fw-bold text-muted" style="font-size: 0.78rem;">Digite uma senha</small>
+                        </div>
+                        <div class="p-2 px-3 bg-light rounded-3 border" id="checklistTrocar">
+                            <div class="req-item" data-req="len"><span class="req-icon">○</span> Mínimo de 8 caracteres</div>
+                            <div class="req-item" data-req="upper"><span class="req-icon">○</span> Pelo menos 1 letra maiúscula (A-Z)</div>
+                            <div class="req-item" data-req="lower"><span class="req-icon">○</span> Pelo menos 1 letra minúscula (a-z)</div>
+                            <div class="req-item" data-req="num"><span class="req-icon">○</span> Pelo menos 1 número (0-9)</div>
+                            <div class="req-item" data-req="spec"><span class="req-icon">○</span> Pelo menos 1 símbolo especial (!@#$%...)</div>
+                        </div>
                     </div>
                     <div class="d-grid">
-                        <button type="submit" class="btn btn-warning text-white rounded-pill fw-bold shadow-sm">
+                        <button type="submit" id="btnSubmitTrocar" class="btn btn-warning text-white rounded-pill fw-bold shadow-sm" disabled>
                             Atualizar Senha
                         </button>
                     </div>
@@ -214,10 +266,138 @@
         bloco.style.display = (perfil === 'professor') ? 'block' : 'none';
     }
 
-    function alternarVisibilidadeSenha() {
-        const input = document.getElementById('inputNovaSenha');
-        input.type = (input.type === 'password') ? 'text' : 'password';
+    function alternarVisibilidadeInput(inputId, btnId) {
+        const input = document.getElementById(inputId);
+        const btn = document.getElementById(btnId);
+        if (!input) return;
+        if (input.type === 'password') {
+            input.type = 'text';
+            if (btn) btn.textContent = 'Ocultar';
+        } else {
+            input.type = 'password';
+            if (btn) btn.textContent = 'Mostrar';
+        }
     }
+
+    function avaliarRequisitosSenha(senha) {
+        return {
+            len: senha.length >= 8,
+            upper: /[A-Z]/.test(senha),
+            lower: /[a-z]/.test(senha),
+            num: /\d/.test(senha),
+            spec: /[^A-Za-z0-9\s]/.test(senha)
+        };
+    }
+
+    function configurarMedidorSenha(inputId, barraId, textoId, checklistId, btnSubmitId) {
+        const input = document.getElementById(inputId);
+        const barra = document.getElementById(barraId);
+        const texto = document.getElementById(textoId);
+        const checklist = document.getElementById(checklistId);
+        const btnSubmit = document.getElementById(btnSubmitId);
+        if (!input || !barra || !texto || !checklist || !btnSubmit) return;
+
+        function atualizar() {
+            const val = input.value || '';
+            const reqs = avaliarRequisitosSenha(val);
+            let cumpridos = 0;
+
+            Object.keys(reqs).forEach(function(chave) {
+                const item = checklist.querySelector('[data-req="' + chave + '"]');
+                if (!item) return;
+                const icone = item.querySelector('.req-icon');
+                if (reqs[chave]) {
+                    cumpridos++;
+                    item.classList.add('valido');
+                    if (icone) icone.textContent = '✓';
+                } else {
+                    item.classList.remove('valido');
+                    if (icone) icone.textContent = '○';
+                }
+            });
+
+            if (val.length === 0) {
+                barra.style.width = '0%';
+                barra.className = 'progress-bar bg-danger';
+                texto.textContent = 'Digite uma senha';
+                texto.className = 'fw-bold text-muted';
+                btnSubmit.disabled = true;
+                return;
+            }
+
+            const pct = (cumpridos / 5) * 100;
+            barra.style.width = pct + '%';
+
+            if (cumpridos <= 2) {
+                barra.className = 'progress-bar bg-danger';
+                texto.textContent = 'Força: Fraca';
+                texto.className = 'fw-bold text-danger';
+                btnSubmit.disabled = true;
+            } else if (cumpridos <= 4) {
+                barra.className = 'progress-bar bg-warning';
+                texto.textContent = 'Força: Média (complete todos os itens)';
+                texto.className = 'fw-bold text-warning';
+                btnSubmit.disabled = true;
+            } else {
+                barra.className = 'progress-bar bg-success';
+                texto.textContent = val.length >= 12 ? 'Força: Excelente (Padrão Internacional)' : 'Força: Forte (Aprovada)';
+                texto.className = 'fw-bold text-success';
+                btnSubmit.disabled = false;
+            }
+        }
+
+        input.addEventListener('input', atualizar);
+        input._atualizarMedidor = atualizar;
+    }
+
+    function gerarSenhaForte(inputId, btnToggleId) {
+        const maiusculas = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+        const minusculas = "abcdefghijkmnopqrstuvwxyz";
+        const numeros = "23456789";
+        const especiais = "@#$!%&*+?";
+        const todos = maiusculas + minusculas + numeros + especiais;
+
+        function sortearChar(str) {
+            const arr = new Uint32Array(1);
+            window.crypto.getRandomValues(arr);
+            return str[arr[0] % str.length];
+        }
+
+        // Garante pelo menos 2 de cada categoria essencial (total 12 caracteres)
+        let chars = [
+            sortearChar(maiusculas), sortearChar(maiusculas),
+            sortearChar(minusculas), sortearChar(minusculas),
+            sortearChar(numeros), sortearChar(numeros),
+            sortearChar(especiais), sortearChar(especiais)
+        ];
+        while (chars.length < 12) {
+            chars.push(sortearChar(todos));
+        }
+
+        // Embaralha com Fisher-Yates criptográfico
+        for (let i = chars.length - 1; i > 0; i--) {
+            const arr = new Uint32Array(1);
+            window.crypto.getRandomValues(arr);
+            const j = arr[0] % (i + 1);
+            const temp = chars[i];
+            chars[i] = chars[j];
+            chars[j] = temp;
+        }
+
+        const input = document.getElementById(inputId);
+        const btn = document.getElementById(btnToggleId);
+        if (!input) return;
+
+        input.value = chars.join('');
+        input.type = 'text';
+        if (btn) btn.textContent = 'Ocultar';
+        if (typeof input._atualizarMedidor === 'function') {
+            input._atualizarMedidor();
+        }
+    }
+
+    configurarMedidorSenha('inputSenhaCriar', 'barraForcaCriar', 'textoForcaCriar', 'checklistCriar', 'btnSubmitCriar');
+    configurarMedidorSenha('inputNovaSenha', 'barraForcaTrocar', 'textoForcaTrocar', 'checklistTrocar', 'btnSubmitTrocar');
 
     document.querySelectorAll('.turma-searchable').forEach(function(bloco) {
         const campo = bloco.querySelector('input[type="search"]');
